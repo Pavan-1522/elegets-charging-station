@@ -3,353 +3,393 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Elegets Smart Station Pro</title>
-    
+    <title>Elegets Smart Station</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap');
+        
         body { 
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
+            background: radial-gradient(circle at top right, #1e3a8a 0%, #0f172a 40%, #020617 100%); 
             color: white; 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-            -webkit-tap-highlight-color: transparent;
+            font-family: 'Inter', sans-serif; 
         }
+        .brand-font { font-family: 'Orbitron', sans-serif; }
+        
         .glass { 
             background: rgba(255, 255, 255, 0.03); 
             backdrop-filter: blur(16px); 
             -webkit-backdrop-filter: blur(16px); 
             border: 1px solid rgba(255, 255, 255, 0.08); 
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
         }
-        /* Custom Select Dropdown */
-        select {
-            appearance: none; 
-            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%233b82f6%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-            background-repeat: no-repeat;
-            background-position: right 1rem center;
-            background-size: 0.65em auto;
+        
+        select, input[type="range"] { accent-color: #3b82f6; }
+        
+        .slot-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
         }
-        .loader {
-            border: 3px solid rgba(255,255,255,0.1);
-            border-left-color: #3b82f6;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        /* Animations */
+        @keyframes glow { 0% { box-shadow: 0 0 5px #3b82f6; } 50% { box-shadow: 0 0 20px #3b82f6; } 100% { box-shadow: 0 0 5px #3b82f6; } }
+        .charging-glow { animation: glow 2s infinite; border-color: #3b82f6; }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen p-4 pb-20">
 
-    <div class="glass w-full max-w-lg p-6 md:p-10 rounded-3xl shadow-2xl relative overflow-hidden transition-all duration-500" id="main-card">
-        
-        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
-
-        <div class="flex justify-between items-center mb-6">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">Elegets<span class="text-blue-500">Station</span></h1>
-                <p class="text-xs text-gray-400">Intelligent Charging System</p>
-            </div>
-            <div id="status-pill" class="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 text-xs font-bold border border-slate-700">
-                <div id="status-dot" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
-                <span id="status-text">Checking...</span>
+    <nav class="flex justify-between items-center mb-8 max-w-lg mx-auto">
+        <div>
+            <h1 class="text-2xl font-bold brand-font tracking-wider">ELEGETS<span class="text-blue-500">.PRO</span></h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest">System Online</p>
             </div>
         </div>
+        <div class="text-right">
+            <p class="text-xs text-gray-400">Available Ports</p>
+            <h2 id="avail-count" class="text-2xl font-bold text-blue-400">--/8</h2>
+        </div>
+    </nav>
 
-        <div id="full-warning" class="hidden bg-red-500/10 border border-red-500/50 p-4 rounded-xl mb-6 text-center animate-pulse">
-            <p class="text-red-400 font-bold text-sm"><i class="fas fa-exclamation-circle mr-2"></i> Station is currently FULL</p>
-            <p class="text-xs text-red-300">Please try again later.</p>
+    <main class="w-full max-w-lg mx-auto space-y-6">
+
+        <div id="full-warning" class="hidden bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-center">
+            <p class="text-red-400 font-bold text-sm"><i class="fas fa-ban mr-2"></i> Station Full</p>
+            <p class="text-xs text-red-300">All relays are currently busy.</p>
         </div>
 
-        <div id="form-section" class="space-y-5">
-            <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Operating System</label>
-                <select id="os-select" onchange="loadBrands()" class="w-full bg-slate-800/50 border border-gray-700 text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-4 shadow-sm transition">
-                    <option value="" disabled selected>Select OS</option>
-                    <option value="android">Android</option>
-                    <option value="ios">iOS (Apple)</option>
-                </select>
-            </div>
-
-            <div id="brand-group" class="hidden opacity-0 transition-opacity duration-300">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Brand</label>
-                <select id="brand-select" onchange="loadModels()" class="w-full bg-slate-800/50 border border-gray-700 text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-4 shadow-sm">
-                    <option value="" disabled selected>Select Brand</option>
-                </select>
-            </div>
-
-            <div id="model-group" class="hidden opacity-0 transition-opacity duration-300">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Model</label>
-                <select id="model-select" onchange="enableBatteryInput()" class="w-full bg-slate-800/50 border border-gray-700 text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-4 shadow-sm">
-                    <option value="" disabled selected>Select Model</option>
-                </select>
-            </div>
-
-            <div id="battery-group" class="hidden opacity-0 transition-opacity duration-300 pt-2">
-                <div class="flex justify-between mb-2">
-                    <label class="text-xs font-bold text-gray-500 uppercase">Current Battery</label>
-                    <span id="battery-val" class="text-blue-400 font-bold text-sm">20%</span>
-                </div>
-                <input type="range" id="battery-range" min="1" max="99" value="20" oninput="calculatePrediction()" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
-                
-                <div class="mt-6 glass bg-blue-500/5 border-blue-500/20 p-5 rounded-2xl flex justify-between items-center relative overflow-hidden">
-                    <div class="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
-                    <div>
-                        <p class="text-[10px] text-blue-300 uppercase tracking-widest mb-1"><i class="fas fa-bolt mr-1"></i> AI Prediction</p>
-                        <h3 class="text-3xl font-bold text-white" id="time-display">-- min</h3>
-                    </div>
-                    <div class="text-right z-10">
-                        <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Total Cost</p>
-                        <h3 class="text-2xl font-bold text-green-400" id="cost-display">₹--</h3>
-                    </div>
-                </div>
-
-                <button id="pay-btn" onclick="initiatePayment()" class="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-500/20 transition transform hover:scale-[1.01] active:scale-[0.98]">
-                    Proceed to Pay
-                </button>
-            </div>
-        </div>
-
-        <div id="payment-section" class="hidden text-center py-6 space-y-6 animate-fade-in">
-            <div class="bg-blue-600/10 border border-blue-500/50 p-6 rounded-2xl">
-                <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-blue-500/30 mb-4">
-                    <i class="fas fa-wallet text-2xl text-white"></i>
-                </div>
-                <h3 class="text-xl font-bold text-white">Payment Link Ready</h3>
-                <p class="text-gray-400 text-sm mt-2 mb-6">Click below to open the secure payment gateway.</p>
-                
-                <a id="payment-link-btn" href="#" target="_blank" class="block w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl transition">
-                    Open Payment Page <i class="fas fa-external-link-alt ml-2"></i>
-                </a>
-            </div>
-
-            <div class="flex justify-center items-center gap-2 text-yellow-400 text-xs bg-yellow-400/10 p-2 rounded-full w-max mx-auto px-4">
-                <div class="loader !w-3 !h-3 !border-yellow-400/30 !border-l-yellow-400"></div>
-                Checking payment status...
-            </div>
+        <div id="section-form" class="glass p-6 rounded-3xl animate-fade-in relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
             
-            <button onclick="location.reload()" class="text-xs text-gray-500 underline hover:text-white">Cancel Transaction</button>
+            <h2 class="text-lg font-semibold mb-4"><i class="fas fa-bolt text-yellow-400 mr-2"></i>New Session</h2>
+
+            <div class="space-y-4">
+                <div class="relative">
+                    <select id="os-select" onchange="loadBrands()" class="w-full bg-slate-900/50 border border-slate-700 text-white text-sm rounded-xl p-3 focus:border-blue-500 outline-none appearance-none">
+                        <option value="" disabled selected>Select Device Type</option>
+                        <option value="android">Android</option>
+                        <option value="ios">Apple (iOS)</option>
+                    </select>
+                    <i class="fas fa-chevron-down absolute right-4 top-4 text-gray-500 text-xs pointer-events-none"></i>
+                </div>
+
+                <div id="brand-wrapper" class="relative hidden">
+                    <select id="brand-select" onchange="loadModels()" class="w-full bg-slate-900/50 border border-slate-700 text-white text-sm rounded-xl p-3 focus:border-blue-500 outline-none appearance-none"></select>
+                    <i class="fas fa-chevron-down absolute right-4 top-4 text-gray-500 text-xs pointer-events-none"></i>
+                </div>
+
+                <div id="model-wrapper" class="relative hidden">
+                    <select id="model-select" onchange="enableBatteryInput()" class="w-full bg-slate-900/50 border border-slate-700 text-white text-sm rounded-xl p-3 focus:border-blue-500 outline-none appearance-none"></select>
+                    <i class="fas fa-chevron-down absolute right-4 top-4 text-gray-500 text-xs pointer-events-none"></i>
+                </div>
+
+                <div id="battery-wrapper" class="hidden pt-2">
+                    <div class="flex justify-between mb-2">
+                        <label class="text-xs text-gray-400 uppercase">Current Charge</label>
+                        <span id="battery-val" class="text-blue-400 font-bold text-sm">20%</span>
+                    </div>
+                    <input type="range" id="battery-range" min="1" max="99" value="20" oninput="calculatePrediction()" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    
+                    <div class="mt-4 bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                        <div>
+                            <p class="text-[10px] text-blue-400 uppercase tracking-widest mb-1">AI Calculated Time</p>
+                            <h3 class="text-2xl font-bold text-white" id="time-display">-- min</h3>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Amount</p>
+                            <h3 class="text-xl font-bold text-green-400" id="cost-display">₹--</h3>
+                        </div>
+                    </div>
+
+                    <button id="pay-btn" onclick="initiateCheckout()" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <span>Pay Securely</span> <i class="fas fa-lock text-xs"></i>
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div id="success-section" class="hidden text-center py-12 animate-fade-in">
-            <div class="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-green-500/20 mb-6">
-                <i class="fas fa-check text-4xl text-white"></i>
-            </div>
-            <h2 class="text-3xl font-bold text-white">Connected!</h2>
-            <p class="text-gray-400 mt-2 mb-8">Device charging started.</p>
-            
-            <div class="glass p-6 rounded-2xl border-green-500/30 bg-green-500/5 relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
-                <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Assigned Port</p>
-                <h1 class="text-6xl font-mono font-bold text-white" id="assigned-slot-display">--</h1>
-                <p class="text-xs text-green-400 mt-2"><i class="fas fa-plug mr-1"></i> Relay Active</p>
-            </div>
-
-            <button onclick="location.reload()" class="mt-8 text-sm text-gray-500 hover:text-white underline">Start New Session</button>
+        <div id="section-loading" class="hidden text-center py-10 glass rounded-3xl">
+            <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <h3 id="loading-text" class="text-lg font-bold">Processing...</h3>
+            <p class="text-sm text-gray-400">Please do not close this window.</p>
         </div>
 
-    </div>
+        <div id="section-success" class="hidden glass p-6 rounded-3xl text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-green-500"></div>
+            <div class="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-green-400 text-3xl">
+                <i class="fas fa-check"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-white">Payment Successful</h2>
+            <p class="text-sm text-gray-400 mb-6">Your charging session has started.</p>
+
+            <div class="bg-slate-900/80 rounded-xl p-4 mb-6">
+                <p class="text-xs text-gray-500 uppercase tracking-widest mb-1">Assigned Relay</p>
+                <h1 class="text-5xl font-mono font-bold text-green-400 mb-2" id="receipt-slot">--</h1>
+                <p class="text-xs text-blue-400 animate-pulse"><i class="fas fa-plug"></i> Power Active</p>
+            </div>
+
+            <div class="text-left text-xs text-gray-400 space-y-2 border-t border-gray-700 pt-4">
+                <div class="flex justify-between"><span>Order ID:</span> <span id="receipt-id" class="font-mono text-white">--</span></div>
+                <div class="flex justify-between"><span>Amount:</span> <span id="receipt-amt" class="text-white">--</span></div>
+                <div class="flex justify-between"><span>Date:</span> <span id="receipt-date" class="text-white">--</span></div>
+            </div>
+
+            <button onclick="window.location.href = window.location.pathname" class="mt-6 text-sm text-blue-400 hover:text-white underline">Start New Session</button>
+        </div>
+
+        <div class="glass p-5 rounded-3xl">
+            <h3 class="text-xs font-bold text-gray-500 uppercase mb-3"><i class="fas fa-server mr-1"></i> Live Station Status</h3>
+            <div id="relay-grid" class="slot-grid">
+                <div class="h-16 rounded-xl bg-slate-800 animate-pulse"></div>
+                <div class="h-16 rounded-xl bg-slate-800 animate-pulse"></div>
+                <div class="h-16 rounded-xl bg-slate-800 animate-pulse"></div>
+                <div class="h-16 rounded-xl bg-slate-800 animate-pulse"></div>
+            </div>
+        </div>
+
+    </main>
 
     <script>
-        // ==========================================
-        // 1. CONFIGURATION
-        // ==========================================
-        const VERCEL_URL = "https://charging-station-api.vercel.app"; 
-        
+        // --- CONFIGURATION ---
+        const VERCEL_URL = "https://charging-station-api.vercel.app"; // CHANGE THIS IF NEEDED
         const SUPABASE_URL = "https://krjcrshpjucwslxyhzib.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyamNyc2hwanVjd3NseHloemliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2OTY4NjksImV4cCI6MjA4MzI3Mjg2OX0.Yyh4fTBxAfL8815HQylm3ZE8j11EkcqkbAR52YayuT4";
         
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const cashfree = Cashfree({ mode: "sandbox" });
 
-        // ==========================================
-        // 2. DATA & CALCULATIONS
-        // ==========================================
+        // --- GLOBAL STATE ---
+        let currentMah = 0;
+        let calculatedCost = 10;
+        let calculatedMinutes = 30;
         const mobileData = {
             android: {
-                Samsung: [{name: "Galaxy S23 Ultra", mah: 5000}, {name: "Galaxy S23", mah: 3900}],
+                Samsung: [{name: "S23 Ultra", mah: 5000}, {name: "Galaxy S23", mah: 3900}],
                 Motorola: [{name: "Moto G54", mah: 6000}, {name: "Edge 40", mah: 4400}],
-                Xiaomi: [{name: "Redmi Note 12", mah: 5000}, {name: "Xiaomi 13", mah: 4500}]
+                Xiaomi: [{name: "Redmi 12", mah: 5000}, {name: "Xiaomi 13", mah: 4500}]
             },
             ios: {
-                Apple: [{name: "iPhone 15 Pro Max", mah: 4422}, {name: "iPhone 14", mah: 3279}, {name: "iPhone 13", mah: 3227}]
+                Apple: [{name: "iPhone 15 Pro", mah: 4422}, {name: "iPhone 14", mah: 3279}, {name: "iPhone 13", mah: 3227}]
             }
         };
 
-        let currentMah = 0;
-        let calculatedCost = 10;
-        let calculatedMinutes = 30; // NEW: Store the time here
+        // --- INIT ---
+        window.onload = async () => {
+            // Check for Return from Payment
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderId = urlParams.get('order_id');
 
-        const osSelect = document.getElementById('os-select');
-        const brandSelect = document.getElementById('brand-select');
-        const modelSelect = document.getElementById('model-select');
-        const brandGroup = document.getElementById('brand-group');
-        const modelGroup = document.getElementById('model-group');
-        const batteryGroup = document.getElementById('battery-group');
-
-        async function checkAvailability() {
-            /* ... (Keep existing checkAvailability code) ... */
-            // For brevity, assuming this function exists as written before
-            const statusDot = document.getElementById('status-dot');
-            const statusText = document.getElementById('status-text');
-            const payBtn = document.getElementById('pay-btn');
-            try {
-                const { count, error } = await db.from('slots').select('*', { count: 'exact', head: true }).eq('is_active', false);
-                if (count > 0) {
-                    statusDot.classList.replace('bg-yellow-500', 'bg-green-500');
-                    statusText.innerText = `Available: ${count}/8`;
-                    payBtn.disabled = false;
-                } else {
-                    statusDot.classList.replace('bg-green-500', 'bg-red-500');
-                    statusText.innerText = "Station Full";
-                    payBtn.disabled = true;
-                }
-            } catch (e) { console.error(e); }
-        }
-        checkAvailability();
-
-        function loadBrands() {
-            brandSelect.innerHTML = '<option value="" disabled selected>Select Brand</option>';
-            modelSelect.innerHTML = '<option value="" disabled selected>Select Model</option>';
-            brandGroup.classList.remove('hidden', 'opacity-0');
-            const brands = Object.keys(mobileData[osSelect.value]);
-            brands.forEach(b => {
-                const opt = document.createElement('option');
-                opt.value = b; opt.textContent = b;
-                brandSelect.appendChild(opt);
-            });
-        }
-
-        function loadModels() {
-            modelSelect.innerHTML = '<option value="" disabled selected>Select Model</option>';
-            modelGroup.classList.remove('hidden', 'opacity-0');
-            const models = mobileData[osSelect.value][brandSelect.value];
-            models.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m.mah; opt.textContent = m.name;
-                modelSelect.appendChild(opt);
-            });
-        }
-
-        function enableBatteryInput() {
-            batteryGroup.classList.remove('hidden', 'opacity-0');
-            currentMah = parseInt(modelSelect.value);
-            calculatePrediction();
-        }
-
-        function calculatePrediction() {
-            const currentPct = parseInt(document.getElementById('battery-range').value);
-            document.getElementById('battery-val').innerText = currentPct + "%";
-            if (!currentMah) return;
-
-            const neededMah = (currentMah * (100 - currentPct)) / 100;
-            let minutes = Math.ceil(neededMah / 60); // 60mAh/min speed
-            if(minutes < 10) minutes = 10;
-
-            // Store calculated minutes in global variable
-            calculatedMinutes = minutes; 
-
-            let cost = 10;
-            if (minutes > 30) {
-                cost += Math.ceil((minutes - 30) / 15) * 5;
+            if(orderId) {
+                handlePaymentReturn(orderId);
+            } else {
+                startLiveDashboard();
             }
-            calculatedCost = cost;
-            
-            document.getElementById('time-display').innerText = minutes + " min";
-            document.getElementById('cost-display').innerText = "₹" + cost;
-        }
+        };
 
-        // ==========================================
-        // 3. PAYMENT & ASSIGNMENT
-        // ==========================================
-        async function initiatePayment() {
-            /* ... (Keep existing payment logic) ... */
-             const payBtn = document.getElementById('pay-btn');
-             payBtn.disabled = true;
-             payBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        // --- CORE LOGIC ---
+
+        async function initiateCheckout() {
+            const btn = document.getElementById('pay-btn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Secure Redirect...';
+            btn.disabled = true;
+
+            // 1. Double check availability
+            const { count } = await db.from('slots').select('*', { count: 'exact', head: true }).eq('is_active', false);
+            if(count === 0) {
+                alert("Station just became full!");
+                location.reload();
+                return;
+            }
 
             try {
-                const response = await fetch(`${VERCEL_URL}/api/create_order`, {
+                // 2. Call Vercel to create Session
+                const res = await fetch(`${VERCEL_URL}/api/create_order`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ amount: calculatedCost, phone: "9999999999" })
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ amount: calculatedCost, phone: "9876543210" })
+                });
+                const data = await res.json();
+                
+                if(data.error) throw new Error(data.error);
+
+                // 3. Redirect to Cashfree
+                cashfree.checkout({
+                    paymentSessionId: data.payment_session_id,
+                    returnUrl: `https://pavan-1522.github.io/elegets-charging-station/?order_id=${data.order_id}`
                 });
 
-                const data = await response.json();
-                if (data.error) throw new Error(data.error);
-
-                const paymentLink = data.payment_link;
-                const orderId = data.order_id;
-                
-                document.getElementById('payment-link-btn').href = paymentLink;
-                window.open(paymentLink, '_blank');
-
-                document.getElementById('form-section').style.display = 'none';
-                document.getElementById('payment-section').classList.remove('hidden');
-
-                startPolling(orderId);
             } catch (err) {
-                alert("Payment Error: " + err.message);
-                payBtn.disabled = false;
-                payBtn.innerText = "Proceed to Pay";
+                alert("Gateway Error: " + err.message);
+                btn.innerHTML = "Pay Securely";
+                btn.disabled = false;
             }
         }
 
-        function startPolling(orderId) {
-            const interval = setInterval(async () => {
-                try {
-                    const res = await fetch(`${VERCEL_URL}/api/check_status?order_id=${orderId}`);
-                    const data = await res.json();
-                    if (data.status === "PAID") {
-                        clearInterval(interval);
-                        assignFreeSlot(); 
-                    }
-                } catch (e) { }
-            }, 3000); 
-        }
+        async function handlePaymentReturn(orderId) {
+            document.getElementById('section-form').classList.add('hidden');
+            document.getElementById('section-loading').classList.remove('hidden');
+            document.getElementById('loading-text').innerText = "Verifying Payment...";
 
-        async function assignFreeSlot() {
             try {
-                let { data: slots, error } = await db
-                    .from('slots')
-                    .select('*')
-                    .eq('is_active', false)
-                    .order('id', { ascending: true })
-                    .limit(1);
+                // Verify with Backend
+                const res = await fetch(`${VERCEL_URL}/api/check_status?order_id=${orderId}`);
+                const data = await res.json();
 
-                if (error || !slots || slots.length === 0) {
-                    alert("Payment received, but NO SLOTS AVAILABLE! Please wait.");
-                    location.reload(); 
-                    return;
+                if(data.order_status === "PAID") {
+                    await assignSlot(data);
+                } else {
+                    alert("Payment Failed. Status: " + data.order_status);
+                    window.location.href = window.location.pathname;
                 }
-
-                const freeSlot = slots[0];
-                
-                // --- DYNAMIC TIME FIX ---
-                // 1. Get the India Offset (5.5 hours)
-                const indiaOffset = 5.5 * 60 * 60 * 1000; 
-                
-                // 2. Use the CALCULATED minutes, not hardcoded 30
-                const duration = calculatedMinutes * 60 * 1000; 
-                
-                // 3. Calculate Final Expiry
-                const expiry = Date.now() + duration + indiaOffset; 
-                // ------------------------
-
-                await db.from('slots')
-                    .update({ is_active: true, expiry_time: expiry })
-                    .eq('id', freeSlot.id);
-
-                document.getElementById('payment-section').classList.add('hidden');
-                document.getElementById('success-section').classList.remove('hidden');
-                document.getElementById('assigned-slot-display').innerText = "#" + freeSlot.id;
-
             } catch (err) {
-                console.error("Database Error:", err);
-                alert("System Error during assignment.");
+                alert("Verification Error: " + err.message);
             }
         }
+
+        async function assignSlot(paymentData) {
+            document.getElementById('loading-text').innerText = "Assigning Port...";
+            
+            // Find Free Slot
+            let { data: slots } = await db.from('slots').select('*').eq('is_active', false).order('id').limit(1);
+            
+            if(!slots || slots.length === 0) {
+                alert("CRITICAL: Payment Success but Slots Full. Contact Support with Order ID: " + paymentData.order_id);
+                return;
+            }
+
+            const freeSlot = slots[0];
+            
+            // Calc India Time Expiry
+            // Default 30 mins if we lost state during redirect, else calculate based on cost
+            // Since we lost 'calculatedMinutes' during redirect, we estimate based on amount paid
+            // Rate: 10rs = 30min, 15rs = 45min, etc.
+            let mins = 30; 
+            if(paymentData.order_amount > 10) {
+                mins = 30 + ((paymentData.order_amount - 10) / 5) * 15;
+            }
+
+            const indiaOffset = 5.5 * 60 * 60 * 1000;
+            const expiry = Date.now() + (mins * 60 * 1000) + indiaOffset;
+
+            // Update DB
+            await db.from('slots').update({ is_active: true, expiry_time: expiry }).eq('id', freeSlot.id);
+
+            // Show Receipt
+            document.getElementById('section-loading').classList.add('hidden');
+            document.getElementById('section-success').classList.remove('hidden');
+            
+            document.getElementById('receipt-slot').innerText = "#" + freeSlot.id;
+            document.getElementById('receipt-id').innerText = paymentData.order_id;
+            document.getElementById('receipt-amt').innerText = "₹" + paymentData.order_amount;
+            document.getElementById('receipt-date').innerText = new Date().toLocaleString();
+            
+            // Start dashboard polling
+            startLiveDashboard();
+        }
+
+        // --- DASHBOARD LOGIC ---
+        
+        function startLiveDashboard() {
+            updateDashboard(); // Run once
+            setInterval(updateDashboard, 5000); // Loop
+        }
+
+        async function updateDashboard() {
+            const { data: slots, error } = await db.from('slots').select('*').order('id');
+            if(error) return;
+
+            const grid = document.getElementById('relay-grid');
+            grid.innerHTML = ""; // Clear
+            
+            let busyCount = 0;
+
+            // Get current India Time (Approx) for comparison
+            const now = Date.now() + (5.5 * 60 * 60 * 1000);
+
+            slots.forEach(slot => {
+                const div = document.createElement('div');
+                div.className = "rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all";
+                
+                if(slot.is_active) {
+                    busyCount++;
+                    // Calculate remaining time
+                    let remaining = Math.ceil((slot.expiry_time - now) / 60000);
+                    if(remaining < 0) remaining = 0;
+
+                    div.classList.add('bg-blue-900/40', 'border', 'border-blue-500/50', 'charging-glow');
+                    div.innerHTML = `
+                        <div class="text-[10px] text-blue-300 font-bold">#${slot.id}</div>
+                        <i class="fas fa-bolt text-blue-400 my-1"></i>
+                        <div class="text-[10px] text-white font-mono">${remaining}m</div>
+                    `;
+                } else {
+                    div.classList.add('bg-slate-800', 'border', 'border-slate-700', 'opacity-60');
+                    div.innerHTML = `
+                        <div class="text-[10px] text-gray-500 font-bold">#${slot.id}</div>
+                        <div class="text-[9px] text-green-400 mt-1">FREE</div>
+                    `;
+                }
+                grid.appendChild(div);
+            });
+
+            document.getElementById('avail-count').innerText = (8 - busyCount) + "/8";
+            
+            if(busyCount === 8) {
+                document.getElementById('full-warning').classList.remove('hidden');
+                document.getElementById('pay-btn').disabled = true;
+                document.getElementById('pay-btn').innerText = "Station Full";
+                document.getElementById('pay-btn').classList.add('bg-gray-600', 'cursor-not-allowed');
+            }
+        }
+
+        // --- FORM HELPERS ---
+        function loadBrands() {
+            const sel = document.getElementById('brand-select');
+            sel.innerHTML = '<option disabled selected>Brand</option>';
+            document.getElementById('brand-wrapper').classList.remove('hidden');
+            
+            Object.keys(mobileData[document.getElementById('os-select').value]).forEach(b => {
+                sel.innerHTML += `<option value="${b}">${b}</option>`;
+            });
+        }
+        function loadModels() {
+            const sel = document.getElementById('model-select');
+            sel.innerHTML = '<option disabled selected>Model</option>';
+            document.getElementById('model-wrapper').classList.remove('hidden');
+            
+            const os = document.getElementById('os-select').value;
+            const brand = document.getElementById('brand-select').value;
+            mobileData[os][brand].forEach(m => {
+                sel.innerHTML += `<option value="${m.mah}">${m.name}</option>`;
+            });
+        }
+        function enableBatteryInput() {
+            document.getElementById('battery-wrapper').classList.remove('hidden');
+            currentMah = parseInt(document.getElementById('model-select').value);
+            calculatePrediction();
+        }
+        function calculatePrediction() {
+            const pct = document.getElementById('battery-range').value;
+            document.getElementById('battery-val').innerText = pct + "%";
+            
+            const needed = (currentMah * (100 - pct)) / 100;
+            calculatedMinutes = Math.max(10, Math.ceil(needed / 60)); 
+            
+            calculatedCost = 10;
+            if(calculatedMinutes > 30) calculatedCost += Math.ceil((calculatedMinutes-30)/15)*5;
+
+            document.getElementById('time-display').innerText = calculatedMinutes + " min";
+            document.getElementById('cost-display').innerText = "₹" + calculatedCost;
+        }
+
     </script>
 </body>
 </html>

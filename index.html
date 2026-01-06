@@ -114,7 +114,7 @@
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyamNyc2hwanVjd3NseHloemliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2OTY4NjksImV4cCI6MjA4MzI3Mjg2OX0.Yyh4fTBxAfL8815HQylm3ZE8j11EkcqkbAR52YayuT4";
         
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        const cashfree = Cashfree({ mode: "sandbox" });
+        const cashfree = Cashfree({ mode: "production" });
 
         // TEST MODE SETTINGS
         const TEST_SPEEDUP = 5; // 10 mins = 2 mins real time

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Elegets Smart Station</title>
+    <title>Elegets Smart Station (Test Mode)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
@@ -11,31 +11,9 @@
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap');
-        
-        body { 
-            background: radial-gradient(circle at top right, #1e3a8a 0%, #0f172a 40%, #020617 100%); 
-            color: white; 
-            font-family: 'Inter', sans-serif; 
-        }
-        .brand-font { font-family: 'Orbitron', sans-serif; }
-        
-        .glass { 
-            background: rgba(255, 255, 255, 0.03); 
-            backdrop-filter: blur(16px); 
-            -webkit-backdrop-filter: blur(16px); 
-            border: 1px solid rgba(255, 255, 255, 0.08); 
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-        }
-        
-        select, input[type="range"] { accent-color: #3b82f6; }
-        
-        .slot-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-        }
-        
-        /* Animations */
+        body { background: radial-gradient(circle at top right, #1e3a8a 0%, #0f172a 40%, #020617 100%); color: white; font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); }
+        .slot-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         @keyframes glow { 0% { box-shadow: 0 0 5px #3b82f6; } 50% { box-shadow: 0 0 20px #3b82f6; } 100% { box-shadow: 0 0 5px #3b82f6; } }
         .charging-glow { animation: glow 2s infinite; border-color: #3b82f6; }
     </style>
@@ -44,13 +22,13 @@
 
     <nav class="flex justify-between items-center mb-8 max-w-lg mx-auto">
         <div>
-            <h1 class="text-2xl font-bold brand-font tracking-wider">ELEGETS<span class="text-blue-500">.PRO</span></h1>
+            <h1 class="text-2xl font-bold font-mono tracking-wider">ELEGETS<span class="text-yellow-400">.TEST</span></h1>
             <div class="flex items-center gap-2 mt-1">
                 <span class="relative flex h-2 w-2">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                   <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                 </span>
-                <p class="text-[10px] text-gray-400 uppercase tracking-widest">System Online</p>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest">Test Mode Active (5x Speed)</p>
             </div>
         </div>
         <div class="text-right">
@@ -61,35 +39,19 @@
 
     <main class="w-full max-w-lg mx-auto space-y-6">
 
-        <div id="full-warning" class="hidden bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-center">
-            <p class="text-red-400 font-bold text-sm"><i class="fas fa-ban mr-2"></i> Station Full</p>
-            <p class="text-xs text-red-300">All relays are currently busy.</p>
-        </div>
-
         <div id="section-form" class="glass p-6 rounded-3xl animate-fade-in relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
-            
-            <h2 class="text-lg font-semibold mb-4"><i class="fas fa-bolt text-yellow-400 mr-2"></i>New Session</h2>
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-500 to-red-500"></div>
+            <h2 class="text-lg font-semibold mb-4"><i class="fas fa-flask text-yellow-400 mr-2"></i>Select Charging Test</h2>
 
             <div class="space-y-4">
-                <div class="relative">
-                    <select id="os-select" onchange="loadBrands()" class="w-full bg-slate-900/50 border border-slate-700 text-white text-sm rounded-xl p-3 focus:border-blue-500 outline-none appearance-none">
-                        <option value="" disabled selected>Select Device Type</option>
-                        <option value="android">Android</option>
-                        <option value="ios">Apple (iOS)</option>
-                    </select>
-                    <i class="fas fa-chevron-down absolute right-4 top-4 text-gray-500 text-xs pointer-events-none"></i>
-                </div>
+                <select id="os-select" onchange="loadBrands()" class="w-full bg-slate-900/50 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none">
+                    <option value="" disabled selected>Select Device Type</option>
+                    <option value="android">Android</option>
+                    <option value="ios">Apple (iOS)</option>
+                </select>
 
-                <div id="brand-wrapper" class="relative hidden">
-                    <select id="brand-select" onchange="loadModels()" class="w-full bg-slate-900/50 border border-slate-700 text-white text-sm rounded-xl p-3 focus:border-blue-500 outline-none appearance-none"></select>
-                    <i class="fas fa-chevron-down absolute right-4 top-4 text-gray-500 text-xs pointer-events-none"></i>
-                </div>
-
-                <div id="model-wrapper" class="relative hidden">
-                    <select id="model-select" onchange="enableBatteryInput()" class="w-full bg-slate-900/50 border border-slate-700 text-white text-sm rounded-xl p-3 focus:border-blue-500 outline-none appearance-none"></select>
-                    <i class="fas fa-chevron-down absolute right-4 top-4 text-gray-500 text-xs pointer-events-none"></i>
-                </div>
+                <div id="brand-wrapper" class="hidden"><select id="brand-select" onchange="loadModels()" class="w-full bg-slate-900/50 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none"></select></div>
+                <div id="model-wrapper" class="hidden"><select id="model-select" onchange="enableBatteryInput()" class="w-full bg-slate-900/50 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none"></select></div>
 
                 <div id="battery-wrapper" class="hidden pt-2">
                     <div class="flex justify-between mb-2">
@@ -100,17 +62,18 @@
                     
                     <div class="mt-4 bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
                         <div>
-                            <p class="text-[10px] text-blue-400 uppercase tracking-widest mb-1">AI Calculated Time</p>
+                            <p class="text-[10px] text-blue-400 uppercase tracking-widest mb-1">Time</p>
                             <h3 class="text-2xl font-bold text-white" id="time-display">-- min</h3>
+                            <p class="text-[9px] text-yellow-500">(Real Test Time: <span id="real-time-display">--</span>)</p>
                         </div>
                         <div class="text-right">
-                            <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Amount</p>
+                            <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Cost (₹1/10m)</p>
                             <h3 class="text-xl font-bold text-green-400" id="cost-display">₹--</h3>
                         </div>
                     </div>
 
-                    <button id="pay-btn" onclick="initiateCheckout()" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">
-                        <span>Pay Securely</span> <i class="fas fa-lock text-xs"></i>
+                    <button id="pay-btn" onclick="initiateCheckout()" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <span>Pay ₹<span id="btn-cost">1</span></span> <i class="fas fa-lock text-xs"></i>
                     </button>
                 </div>
             </div>
@@ -119,277 +82,229 @@
         <div id="section-loading" class="hidden text-center py-10 glass rounded-3xl">
             <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <h3 id="loading-text" class="text-lg font-bold">Processing...</h3>
-            <p class="text-sm text-gray-400">Please do not close this window.</p>
         </div>
 
         <div id="section-success" class="hidden glass p-6 rounded-3xl text-center relative overflow-hidden">
             <div class="absolute top-0 left-0 w-full h-2 bg-green-500"></div>
-            <div class="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-green-400 text-3xl">
-                <i class="fas fa-check"></i>
-            </div>
-            <h2 class="text-2xl font-bold text-white">Payment Successful</h2>
-            <p class="text-sm text-gray-400 mb-6">Your charging session has started.</p>
-
-            <div class="bg-slate-900/80 rounded-xl p-4 mb-6">
+            <div class="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-green-400 text-3xl"><i class="fas fa-check"></i></div>
+            <h2 class="text-2xl font-bold text-white">Connected!</h2>
+            
+            <div class="bg-slate-900/80 rounded-xl p-4 my-6">
                 <p class="text-xs text-gray-500 uppercase tracking-widest mb-1">Assigned Relay</p>
                 <h1 class="text-5xl font-mono font-bold text-green-400 mb-2" id="receipt-slot">--</h1>
-                <p class="text-xs text-blue-400 animate-pulse"><i class="fas fa-plug"></i> Power Active</p>
+                <p class="text-xs text-blue-400 animate-pulse">Power Active</p>
             </div>
 
             <div class="text-left text-xs text-gray-400 space-y-2 border-t border-gray-700 pt-4">
                 <div class="flex justify-between"><span>Order ID:</span> <span id="receipt-id" class="font-mono text-white">--</span></div>
-                <div class="flex justify-between"><span>Amount:</span> <span id="receipt-amt" class="text-white">--</span></div>
-                <div class="flex justify-between"><span>Date:</span> <span id="receipt-date" class="text-white">--</span></div>
             </div>
-
-            <button onclick="window.location.href = window.location.pathname" class="mt-6 text-sm text-blue-400 hover:text-white underline">Start New Session</button>
+            <button onclick="localStorage.clear(); window.location.href = window.location.pathname;" class="mt-6 text-sm text-blue-400 underline">Start New Test</button>
         </div>
 
         <div class="glass p-5 rounded-3xl">
-            <h3 class="text-xs font-bold text-gray-500 uppercase mb-3"><i class="fas fa-server mr-1"></i> Live Station Status</h3>
-            <div id="relay-grid" class="slot-grid">
-                <div class="h-16 rounded-xl bg-slate-800 animate-pulse"></div>
-                <div class="h-16 rounded-xl bg-slate-800 animate-pulse"></div>
-                <div class="h-16 rounded-xl bg-slate-800 animate-pulse"></div>
-                <div class="h-16 rounded-xl bg-slate-800 animate-pulse"></div>
-            </div>
+            <h3 class="text-xs font-bold text-gray-500 uppercase mb-3"><i class="fas fa-server mr-1"></i> Live Status</h3>
+            <div id="relay-grid" class="slot-grid"></div>
         </div>
-
     </main>
 
     <script>
-        // --- CONFIGURATION ---
-        const VERCEL_URL = "https://charging-station-api.vercel.app"; // CHANGE THIS IF NEEDED
+        // CONFIG
+        const VERCEL_URL = "https://charging-station-api.vercel.app";
         const SUPABASE_URL = "https://krjcrshpjucwslxyhzib.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyamNyc2hwanVjd3NseHloemliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2OTY4NjksImV4cCI6MjA4MzI3Mjg2OX0.Yyh4fTBxAfL8815HQylm3ZE8j11EkcqkbAR52YayuT4";
         
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         const cashfree = Cashfree({ mode: "sandbox" });
 
-        // --- GLOBAL STATE ---
+        // TEST MODE SETTINGS
+        const TEST_SPEEDUP = 5; // 10 mins = 2 mins real time
+        const TEST_PRICE_PER_10MIN = 1; // 1 Rs per 10 mins
+
+        // STATE
         let currentMah = 0;
-        let calculatedCost = 10;
-        let calculatedMinutes = 30;
+        let calculatedCost = 1;
+        let calculatedMinutes = 10;
+        
         const mobileData = {
-            android: {
-                Samsung: [{name: "S23 Ultra", mah: 5000}, {name: "Galaxy S23", mah: 3900}],
-                Motorola: [{name: "Moto G54", mah: 6000}, {name: "Edge 40", mah: 4400}],
-                Xiaomi: [{name: "Redmi 12", mah: 5000}, {name: "Xiaomi 13", mah: 4500}]
-            },
-            ios: {
-                Apple: [{name: "iPhone 15 Pro", mah: 4422}, {name: "iPhone 14", mah: 3279}, {name: "iPhone 13", mah: 3227}]
-            }
+            android: { Samsung: [{name:"S23", mah:3900}], Motorola: [{name:"Moto G54", mah:6000}] },
+            ios: { Apple: [{name:"iPhone 13", mah:3227}] }
         };
 
-        // --- INIT ---
+        // INIT
         window.onload = async () => {
-            // Check for Return from Payment
             const urlParams = new URLSearchParams(window.location.search);
             const orderId = urlParams.get('order_id');
+            const minutes = urlParams.get('mins'); // Retrieve Duration from URL
 
             if(orderId) {
-                handlePaymentReturn(orderId);
+                handlePaymentReturn(orderId, minutes);
             } else {
                 startLiveDashboard();
             }
         };
 
-        // --- CORE LOGIC ---
-
+        // 1. PAYMENT START
         async function initiateCheckout() {
             const btn = document.getElementById('pay-btn');
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Secure Redirect...';
-            btn.disabled = true;
-
-            // 1. Double check availability
-            const { count } = await db.from('slots').select('*', { count: 'exact', head: true }).eq('is_active', false);
-            if(count === 0) {
-                alert("Station just became full!");
-                location.reload();
-                return;
-            }
+            btn.innerHTML = 'Redirecting...'; btn.disabled = true;
 
             try {
-                // 2. Call Vercel to create Session
+                // Pass 'calculatedMinutes' to backend so it comes back in Return URL
                 const res = await fetch(`${VERCEL_URL}/api/create_order`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ amount: calculatedCost, phone: "9876543210" })
+                    body: JSON.stringify({ 
+                        amount: calculatedCost, 
+                        phone: "9876543210",
+                        minutes: calculatedMinutes // PASSING DURATION
+                    })
                 });
                 const data = await res.json();
-                
                 if(data.error) throw new Error(data.error);
 
-                // 3. Redirect to Cashfree
                 cashfree.checkout({
                     paymentSessionId: data.payment_session_id,
-                    returnUrl: `https://pavan-1522.github.io/elegets-charging-station/?order_id=${data.order_id}`
+                    returnUrl: `https://pavan-1522.github.io/elegets-charging-station/?order_id=${data.order_id}&mins=${calculatedMinutes}`
                 });
-
             } catch (err) {
-                alert("Gateway Error: " + err.message);
-                btn.innerHTML = "Pay Securely";
-                btn.disabled = false;
+                alert(err.message);
+                btn.innerHTML = "Pay Securely"; btn.disabled = false;
             }
         }
 
-        async function handlePaymentReturn(orderId) {
+        // 2. PAYMENT RETURN (WITH REFRESH FIX)
+        async function handlePaymentReturn(orderId, minutes) {
             document.getElementById('section-form').classList.add('hidden');
             document.getElementById('section-loading').classList.remove('hidden');
-            document.getElementById('loading-text').innerText = "Verifying Payment...";
+
+            // --- REFRESH BUG FIX ---
+            // Check if we already processed this exact Order ID locally
+            const cachedSlot = localStorage.getItem(orderId);
+            
+            if (cachedSlot) {
+                // If found in memory, just show the receipt again. DON'T assign new slot.
+                console.log("Order already processed. Showing receipt from cache.");
+                showReceipt(cachedSlot, orderId);
+                return; 
+            }
+            // -----------------------
 
             try {
-                // Verify with Backend
                 const res = await fetch(`${VERCEL_URL}/api/check_status?order_id=${orderId}`);
                 const data = await res.json();
 
                 if(data.order_status === "PAID") {
-                    await assignSlot(data);
+                    await assignSlot(minutes || 10, orderId);
                 } else {
-                    alert("Payment Failed. Status: " + data.order_status);
+                    alert("Payment Failed: " + data.order_status);
                     window.location.href = window.location.pathname;
                 }
-            } catch (err) {
-                alert("Verification Error: " + err.message);
-            }
+            } catch (err) { alert("Verify Error"); }
         }
 
-        async function assignSlot(paymentData) {
+        async function assignSlot(mins, orderId) {
             document.getElementById('loading-text').innerText = "Assigning Port...";
             
             // Find Free Slot
             let { data: slots } = await db.from('slots').select('*').eq('is_active', false).order('id').limit(1);
             
             if(!slots || slots.length === 0) {
-                alert("CRITICAL: Payment Success but Slots Full. Contact Support with Order ID: " + paymentData.order_id);
-                return;
+                alert("CRITICAL: Slots Full."); return;
             }
 
             const freeSlot = slots[0];
             
-            // Calc India Time Expiry
-            // Default 30 mins if we lost state during redirect, else calculate based on cost
-            // Since we lost 'calculatedMinutes' during redirect, we estimate based on amount paid
-            // Rate: 10rs = 30min, 15rs = 45min, etc.
-            let mins = 30; 
-            if(paymentData.order_amount > 10) {
-                mins = 30 + ((paymentData.order_amount - 10) / 5) * 15;
-            }
-
+            // --- TEST MODE CALCULATION ---
+            // 1. Get visual minutes (e.g., 10)
+            // 2. Divide by speedup (10 / 5 = 2 real mins)
+            const realDurationMs = (mins / TEST_SPEEDUP) * 60 * 1000;
             const indiaOffset = 5.5 * 60 * 60 * 1000;
-            const expiry = Date.now() + (mins * 60 * 1000) + indiaOffset;
+            const expiry = Date.now() + realDurationMs + indiaOffset;
 
             // Update DB
             await db.from('slots').update({ is_active: true, expiry_time: expiry }).eq('id', freeSlot.id);
 
-            // Show Receipt
+            // SAVE TO LOCAL STORAGE (To prevent duplicate on refresh)
+            localStorage.setItem(orderId, freeSlot.id);
+
+            showReceipt(freeSlot.id, orderId);
+        }
+
+        function showReceipt(slotId, orderId) {
             document.getElementById('section-loading').classList.add('hidden');
             document.getElementById('section-success').classList.remove('hidden');
-            
-            document.getElementById('receipt-slot').innerText = "#" + freeSlot.id;
-            document.getElementById('receipt-id').innerText = paymentData.order_id;
-            document.getElementById('receipt-amt').innerText = "₹" + paymentData.order_amount;
-            document.getElementById('receipt-date').innerText = new Date().toLocaleString();
-            
-            // Start dashboard polling
+            document.getElementById('receipt-slot').innerText = "#" + slotId;
+            document.getElementById('receipt-id').innerText = orderId;
             startLiveDashboard();
         }
 
-        // --- DASHBOARD LOGIC ---
-        
-        function startLiveDashboard() {
-            updateDashboard(); // Run once
-            setInterval(updateDashboard, 5000); // Loop
-        }
-
+        // --- DASHBOARD & HELPERS ---
+        function startLiveDashboard() { updateDashboard(); setInterval(updateDashboard, 5000); }
         async function updateDashboard() {
-            const { data: slots, error } = await db.from('slots').select('*').order('id');
-            if(error) return;
-
+            const { data: slots } = await db.from('slots').select('*').order('id');
             const grid = document.getElementById('relay-grid');
-            grid.innerHTML = ""; // Clear
-            
-            let busyCount = 0;
-
-            // Get current India Time (Approx) for comparison
-            const now = Date.now() + (5.5 * 60 * 60 * 1000);
+            grid.innerHTML = "";
+            let busy = 0;
+            const now = Date.now() + (5.5*60*60*1000);
 
             slots.forEach(slot => {
                 const div = document.createElement('div');
-                div.className = "rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all";
-                
+                div.className = "rounded-xl p-2 flex flex-col items-center justify-center text-center";
                 if(slot.is_active) {
-                    busyCount++;
-                    // Calculate remaining time
-                    let remaining = Math.ceil((slot.expiry_time - now) / 60000);
-                    if(remaining < 0) remaining = 0;
-
+                    busy++;
+                    let rem = Math.ceil((slot.expiry_time - now)/60000);
+                    // Adjust display to show "Simulated Time" (multiply by speedup)
+                    let displayRem = rem < 0 ? 0 : rem * TEST_SPEEDUP; 
+                    
                     div.classList.add('bg-blue-900/40', 'border', 'border-blue-500/50', 'charging-glow');
-                    div.innerHTML = `
-                        <div class="text-[10px] text-blue-300 font-bold">#${slot.id}</div>
-                        <i class="fas fa-bolt text-blue-400 my-1"></i>
-                        <div class="text-[10px] text-white font-mono">${remaining}m</div>
-                    `;
+                    div.innerHTML = `<div class="text-[10px] text-blue-300">#${slot.id}</div><i class="fas fa-bolt text-blue-400 my-1"></i><div class="text-[10px] text-white">${displayRem}m</div>`;
                 } else {
                     div.classList.add('bg-slate-800', 'border', 'border-slate-700', 'opacity-60');
-                    div.innerHTML = `
-                        <div class="text-[10px] text-gray-500 font-bold">#${slot.id}</div>
-                        <div class="text-[9px] text-green-400 mt-1">FREE</div>
-                    `;
+                    div.innerHTML = `<div class="text-[10px] text-gray-500">#${slot.id}</div><div class="text-[9px] text-green-400 mt-1">FREE</div>`;
                 }
                 grid.appendChild(div);
             });
-
-            document.getElementById('avail-count').innerText = (8 - busyCount) + "/8";
-            
-            if(busyCount === 8) {
-                document.getElementById('full-warning').classList.remove('hidden');
-                document.getElementById('pay-btn').disabled = true;
-                document.getElementById('pay-btn').innerText = "Station Full";
-                document.getElementById('pay-btn').classList.add('bg-gray-600', 'cursor-not-allowed');
-            }
+            document.getElementById('avail-count').innerText = (8-busy)+"/8";
         }
 
-        // --- FORM HELPERS ---
+        // --- UI HELPERS ---
         function loadBrands() {
-            const sel = document.getElementById('brand-select');
-            sel.innerHTML = '<option disabled selected>Brand</option>';
-            document.getElementById('brand-wrapper').classList.remove('hidden');
-            
-            Object.keys(mobileData[document.getElementById('os-select').value]).forEach(b => {
-                sel.innerHTML += `<option value="${b}">${b}</option>`;
-            });
+             const sel = document.getElementById('brand-select'); sel.innerHTML='<option>Brand</option>';
+             document.getElementById('brand-wrapper').classList.remove('hidden');
+             Object.keys(mobileData[document.getElementById('os-select').value]).forEach(b=>sel.innerHTML+=`<option value="${b}">${b}</option>`);
         }
         function loadModels() {
-            const sel = document.getElementById('model-select');
-            sel.innerHTML = '<option disabled selected>Model</option>';
-            document.getElementById('model-wrapper').classList.remove('hidden');
-            
-            const os = document.getElementById('os-select').value;
-            const brand = document.getElementById('brand-select').value;
-            mobileData[os][brand].forEach(m => {
-                sel.innerHTML += `<option value="${m.mah}">${m.name}</option>`;
-            });
+             const sel = document.getElementById('model-select'); sel.innerHTML='<option>Model</option>';
+             document.getElementById('model-wrapper').classList.remove('hidden');
+             const os=document.getElementById('os-select').value, br=document.getElementById('brand-select').value;
+             mobileData[os][br].forEach(m=>sel.innerHTML+=`<option value="${m.mah}">${m.name}</option>`);
         }
         function enableBatteryInput() {
-            document.getElementById('battery-wrapper').classList.remove('hidden');
-            currentMah = parseInt(document.getElementById('model-select').value);
-            calculatePrediction();
+             document.getElementById('battery-wrapper').classList.remove('hidden');
+             currentMah = parseInt(document.getElementById('model-select').value);
+             calculatePrediction();
         }
         function calculatePrediction() {
-            const pct = document.getElementById('battery-range').value;
-            document.getElementById('battery-val').innerText = pct + "%";
-            
-            const needed = (currentMah * (100 - pct)) / 100;
-            calculatedMinutes = Math.max(10, Math.ceil(needed / 60)); 
-            
-            calculatedCost = 10;
-            if(calculatedMinutes > 30) calculatedCost += Math.ceil((calculatedMinutes-30)/15)*5;
+             const pct = document.getElementById('battery-range').value;
+             document.getElementById('battery-val').innerText = pct + "%";
+             const needed = (currentMah * (100 - pct)) / 100;
+             
+             // Calc Minutes
+             let mins = Math.max(10, Math.ceil(needed / 60));
+             calculatedMinutes = mins;
 
-            document.getElementById('time-display').innerText = calculatedMinutes + " min";
-            document.getElementById('cost-display').innerText = "₹" + calculatedCost;
+             // Test Pricing: 1 Rs per 10 mins
+             calculatedCost = Math.ceil(mins / 10) * TEST_PRICE_PER_10MIN;
+             
+             document.getElementById('time-display').innerText = mins + " m";
+             
+             // Show Real Test Time
+             const realMins = (mins / TEST_SPEEDUP).toFixed(1);
+             document.getElementById('real-time-display').innerText = realMins + "m";
+             
+             document.getElementById('cost-display').innerText = "₹" + calculatedCost;
+             document.getElementById('btn-cost').innerText = calculatedCost;
         }
-
     </script>
 </body>
 </html>

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elegets Smart Station Pro</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body { 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
+            color: white; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        .glass { 
+            background: rgba(255, 255, 255, 0.03); 
+            backdrop-filter: blur(16px); 
+            -webkit-backdrop-filter: blur(16px); 
+            border: 1px solid rgba(255, 255, 255, 0.08); 
+        }
+        select {
+            appearance: none; 
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%233b82f6%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 0.65em auto;
+        }
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="glass w-full max-w-lg p-6 md:p-10 rounded-3xl shadow-2xl relative overflow-hidden transition-all duration-500" id="main-card">
+        
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">Elegets<span class="text-blue-500">Station</span></h1>
+                <p class="text-xs text-gray-400">Intelligent Charging System</p>
+            </div>
+            <div id="connection-status" class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]" title="Database Offline"></div>
+        </div>
+
+        <div id="form-section" class="space-y-5">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Operating System</label>
+                <select id="os-select" onchange="loadBrands()" class="w-full bg-slate-800/50 border border-gray-700 text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-4 shadow-sm transition">
+                    <option value="" disabled selected>Select OS</option>
+                    <option value="android">Android</option>
+                    <option value="ios">iOS (Apple)</option>
+                </select>
+            </div>
+
+            <div id="brand-group" class="hidden opacity-0 transition-opacity duration-300">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Brand</label>
+                <select id="brand-select" onchange="loadModels()" class="w-full bg-slate-800/50 border border-gray-700 text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-4 shadow-sm">
+                    <option value="" disabled selected>Select Brand</option>
+                </select>
+            </div>
+
+            <div id="model-group" class="hidden opacity-0 transition-opacity duration-300">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Model</label>
+                <select id="model-select" onchange="enableBatteryInput()" class="w-full bg-slate-800/50 border border-gray-700 text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-4 shadow-sm">
+                    <option value="" disabled selected>Select Model</option>
+                </select>
+            </div>
+
+            <div id="battery-group" class="hidden opacity-0 transition-opacity duration-300 pt-2">
+                <div class="flex justify-between mb-2">
+                    <label class="text-xs font-bold text-gray-500 uppercase">Current Battery</label>
+                    <span id="battery-val" class="text-blue-400 font-bold text-sm">20%</span>
+                </div>
+                <input type="range" id="battery-range" min="1" max="99" value="20" oninput="calculatePrediction()" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                
+                <div class="mt-6 glass bg-blue-500/5 border-blue-500/20 p-5 rounded-2xl flex justify-between items-center relative overflow-hidden">
+                    <div class="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
+                    <div>
+                        <p class="text-[10px] text-blue-300 uppercase tracking-widest mb-1"><i class="fas fa-bolt mr-1"></i> AI Prediction</p>
+                        <h3 class="text-3xl font-bold text-white" id="time-display">-- min</h3>
+                    </div>
+                    <div class="text-right z-10">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Total Cost</p>
+                        <h3 class="text-2xl font-bold text-green-400" id="cost-display">₹--</h3>
+                    </div>
+                </div>
+
+                <button id="pay-btn" onclick="initiatePayment()" class="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-500/20 transition transform hover:scale-[1.01] active:scale-[0.98]">
+                    Proceed to Pay
+                </button>
+            </div>
+        </div>
+
+        <div id="payment-section" class="hidden text-center py-6 space-y-6 animate-fade-in">
+            <div class="bg-white p-1 rounded-2xl inline-block mx-auto shadow-2xl">
+                <img id="qr-image" src="" alt="Payment QR" class="w-56 h-56 object-contain rounded-xl">
+            </div>
+            <div>
+                <h3 class="text-xl font-bold text-white">Scan to Pay</h3>
+                <p class="text-gray-400 text-sm mt-1">GPay • PhonePe • Paytm</p>
+            </div>
+            <div class="flex justify-center items-center gap-2 text-yellow-400 text-xs bg-yellow-400/10 p-2 rounded-full w-max mx-auto px-4">
+                <div class="loader !w-3 !h-3 !border-yellow-400/30 !border-l-yellow-400"></div>
+                Waiting for payment confirmation...
+            </div>
+        </div>
+
+        <div id="success-section" class="hidden text-center py-12 animate-fade-in">
+            <div class="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-green-500/20 mb-6">
+                <i class="fas fa-check text-4xl text-white"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-white">Payment Received!</h2>
+            <p class="text-gray-400 mt-2 mb-8">Device connected successfully.</p>
+            
+            <div class="glass p-6 rounded-2xl border-green-500/30 bg-green-500/5 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+                <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Assigned Port</p>
+                <h1 class="text-6xl font-mono font-bold text-white" id="assigned-slot-display">--</h1>
+                <p class="text-xs text-green-400 mt-2"><i class="fas fa-plug mr-1"></i> Relay Active</p>
+            </div>
+
+            <button onclick="location.reload()" class="mt-8 text-sm text-gray-500 hover:text-white underline">Start New Session</button>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. CONFIGURATION
+        // ==========================================
+        
+        // 🔴 STEP 1: Paste your Vercel Backend URL here (No trailing slash)
+        const VERCEL_URL = "https://charging-station-api.vercel.app"; 
+
+        // 🔴 STEP 2: Paste your Supabase Keys here
+        const SUPABASE_URL = "https://krjcrshpjucwslxyhzib.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyamNyc2hwanVjd3NseHloemliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2OTY4NjksImV4cCI6MjA4MzI3Mjg2OX0.Yyh4fTBxAfL8815HQylm3ZE8j11EkcqkbAR52YayuT4";
+        
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // ==========================================
+        // 2. DEVICE & DROPDOWN DATA
+        // ==========================================
+        const mobileData = {
+            android: {
+                Samsung: [{name: "Galaxy S23 Ultra", mah: 5000}, {name: "Galaxy S23", mah: 3900}],
+                Motorola: [{name: "Moto G54", mah: 6000}, {name: "Edge 40", mah: 4400}],
+                Xiaomi: [{name: "Redmi Note 12", mah: 5000}, {name: "Xiaomi 13", mah: 4500}]
+            },
+            ios: {
+                Apple: [{name: "iPhone 15 Pro Max", mah: 4422}, {name: "iPhone 14", mah: 3279}, {name: "iPhone 13", mah: 3227}]
+            }
+        };
+
+        let currentMah = 0;
+        let calculatedCost = 0;
+
+        const osSelect = document.getElementById('os-select');
+        const brandSelect = document.getElementById('brand-select');
+        const modelSelect = document.getElementById('model-select');
+        const brandGroup = document.getElementById('brand-group');
+        const modelGroup = document.getElementById('model-group');
+        const batteryGroup = document.getElementById('battery-group');
+
+        // Check Connection
+        async function checkConnection() {
+            const { error } = await db.from('slots').select('id').limit(1);
+            const statusDot = document.getElementById('connection-status');
+            if(!error) {
+                statusDot.classList.replace('bg-red-500', 'bg-green-500');
+                statusDot.title = "System Online";
+            }
+        }
+        checkConnection();
+
+        // Dropdown Logic
+        function loadBrands() {
+            brandSelect.innerHTML = '<option value="" disabled selected>Select Brand</option>';
+            modelSelect.innerHTML = '<option value="" disabled selected>Select Model</option>';
+            brandGroup.classList.remove('hidden', 'opacity-0');
+            modelGroup.classList.add('hidden', 'opacity-0');
+            batteryGroup.classList.add('hidden', 'opacity-0');
+            
+            const brands = Object.keys(mobileData[osSelect.value]);
+            brands.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b; opt.textContent = b;
+                brandSelect.appendChild(opt);
+            });
+        }
+
+        function loadModels() {
+            modelSelect.innerHTML = '<option value="" disabled selected>Select Model</option>';
+            modelGroup.classList.remove('hidden', 'opacity-0');
+            batteryGroup.classList.add('hidden', 'opacity-0');
+
+            const models = mobileData[osSelect.value][brandSelect.value];
+            models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.mah; opt.textContent = m.name;
+                modelSelect.appendChild(opt);
+            });
+        }
+
+        function enableBatteryInput() {
+            batteryGroup.classList.remove('hidden', 'opacity-0');
+            currentMah = parseInt(modelSelect.value);
+            calculatePrediction();
+        }
+
+        function calculatePrediction() {
+            const currentPct = parseInt(document.getElementById('battery-range').value);
+            document.getElementById('battery-val').innerText = currentPct + "%";
+            if (!currentMah) return;
+
+            const neededMah = (currentMah * (100 - currentPct)) / 100;
+            let minutes = Math.ceil(neededMah / 60); // Assume 60mah/min speed
+            if(minutes < 10) minutes = 10;
+
+            // Pricing: ₹10 base (30min) + ₹5 per 15min extra
+            let cost = 10;
+            if (minutes > 30) {
+                cost += Math.ceil((minutes - 30) / 15) * 5;
+            }
+            calculatedCost = cost;
+            
+            document.getElementById('time-display').innerText = minutes + " min";
+            document.getElementById('cost-display').innerText = "₹" + cost;
+        }
+
+        // ==========================================
+        // 3. PAYMENT LOGIC (VERCEL + CASHFREE)
+        // ==========================================
+        
+        async function initiatePayment() {
+            const payBtn = document.getElementById('pay-btn');
+            payBtn.disabled = true;
+            payBtn.innerText = "Generating Link...";
+
+            try {
+                // 1. Create Order on Vercel Backend
+                const response = await fetch(`${VERCEL_URL}/api/create_order`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        amount: calculatedCost, 
+                        phone: "9999999999" // Dummy phone for guest checkout
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error);
+
+                // 2. Show QR Code
+                const paymentLink = data.payment_link;
+                const orderId = data.order_id; // This is the link_id we use to check status
+
+                // Convert Link URL -> QR Image
+                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(paymentLink)}`;
+                document.getElementById('qr-image').src = qrUrl;
+
+                // Switch UI
+                document.getElementById('form-section').style.display = 'none';
+                document.getElementById('payment-section').classList.remove('hidden');
+
+                // 3. Start Polling for Status
+                startPolling(orderId);
+
+            } catch (err) {
+                console.error(err);
+                alert("Payment Error: " + err.message);
+                payBtn.disabled = false;
+                payBtn.innerText = "Proceed to Pay";
+            }
+        }
+
+        function startPolling(orderId) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`${VERCEL_URL}/api/check_status?order_id=${orderId}`);
+                    const data = await res.json();
+
+                    if (data.status === "PAID") {
+                        clearInterval(interval);
+                        assignFreeSlot(); // Payment Confirmed -> Give Power
+                    }
+                    // If 'ACTIVE', keep waiting...
+                } catch (e) {
+                    console.error("Polling error", e);
+                }
+            }, 3000); // Check every 3 seconds
+        }
+
+        // ==========================================
+        // 4. SUPABASE ASSIGNMENT LOGIC
+        // ==========================================
+        async function assignFreeSlot() {
+            try {
+                // Find empty slot
+                let { data: slots, error } = await db
+                    .from('slots')
+                    .select('*')
+                    .eq('is_active', false)
+                    .order('id', { ascending: true })
+                    .limit(1);
+
+                if (error || !slots || slots.length === 0) {
+                    alert("Payment received, but NO SLOTS AVAILABLE! Please wait.");
+                    location.reload(); 
+                    return;
+                }
+
+                const freeSlot = slots[0];
+                const expiry = Date.now() + (30 * 60 * 1000); // 30 Mins
+
+                // Activate Slot in DB (ESP32 will pick this up)
+                await db.from('slots')
+                    .update({ is_active: true, expiry_time: expiry })
+                    .eq('id', freeSlot.id);
+
+                // Show Success
+                document.getElementById('payment-section').classList.add('hidden');
+                document.getElementById('success-section').classList.remove('hidden');
+                document.getElementById('assigned-slot-display').innerText = "#" + freeSlot.id;
+
+            } catch (err) {
+                console.error("Database Error:", err);
+                alert("System Error during assignment.");
+            }
+        }
+    </script>
+</body>
+</html>

@@ -217,15 +217,25 @@
             {name: "EV Hub 5 (South Bypass)", lat: 18.4440, lng: 83.7620}
         ];
 
+       // Corrected INIT
         window.onload = async () => {
             initMap();
-            startLiveDashboard();
             const urlParams = new URLSearchParams(window.location.search);
             const orderId = urlParams.get('order_id');
             const minutes = urlParams.get('mins'); 
 
-            if(orderId) handlePaymentReturn(orderId, minutes);
+            if(orderId) {
+                handlePaymentReturn(orderId, minutes);
+            } else {
+                startLiveDashboard();
+            }
         };
+
+        // Missing function restored!
+        function startLiveDashboard() { 
+            updateDashboard(); 
+            setInterval(updateDashboard, 5000); 
+        }
 
         function showToast(msg, type = 'info') {
             const container = document.getElementById('toast-container');

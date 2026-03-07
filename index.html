@@ -21,11 +21,9 @@
         @keyframes glow { 0% { box-shadow: 0 0 5px #10b981; } 50% { box-shadow: 0 0 20px #10b981; } 100% { box-shadow: 0 0 5px #10b981; } }
         .charging-glow { animation: glow 2s infinite; border-color: #10b981; }
         
-        /* Map Styles */
         #ev-map { height: 260px; width: 100%; border-radius: 1rem; z-index: 10; }
         .leaflet-popup-content-wrapper { background: #0f172a; color: white; border: 1px solid #334155; }
         .leaflet-popup-tip { background: #0f172a; }
-        /* Hide the bulky routing instructions panel for a cleaner UI */
         .leaflet-routing-container { display: none !important; }
     </style>
 </head>
@@ -74,8 +72,7 @@
                 </div>
                 <div>
                     <p class="text-[10px] text-yellow-500 uppercase tracking-widest mb-2"><i class="fas fa-shield-alt mr-1"></i> Safe Travel Tips</p>
-                    <ul class="text-xs text-gray-300 list-disc pl-4 space-y-1" id="route-tips">
-                        </ul>
+                    <ul class="text-xs text-gray-300 list-disc pl-4 space-y-1" id="route-tips"></ul>
                 </div>
             </div>
         </div>
@@ -122,7 +119,23 @@
 
         <div id="section-loading" class="hidden text-center py-10 glass rounded-3xl">
             <div class="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <h3 id="loading-text" class="text-lg font-bold">Allocating Grid Power...</h3>
+            <h3 id="loading-text" class="text-lg font-bold">Processing...</h3>
+        </div>
+
+        <div id="section-reserved" class="hidden glass p-6 rounded-3xl text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-yellow-500"></div>
+            <div class="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-yellow-400 text-3xl"><i class="fas fa-parking"></i></div>
+            <h2 class="text-2xl font-bold text-white">Port Reserved!</h2>
+            <p class="text-sm text-gray-300 mt-2">Drive safely to the station. Your slot is held.</p>
+            
+            <div class="bg-slate-900/80 rounded-xl p-4 my-6 border border-yellow-500/30">
+                <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Assigned Port</p>
+                <h1 class="text-5xl font-mono font-bold text-yellow-400 mb-2" id="reserved-slot">--</h1>
+            </div>
+
+            <button id="btn-start-charge" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                <i class="fas fa-bolt"></i> I've Arrived - Start Charging
+            </button>
         </div>
 
         <div id="section-success" class="hidden glass p-6 rounded-3xl text-center relative overflow-hidden">
@@ -149,7 +162,7 @@
             <div class="text-left text-xs text-gray-400 space-y-2 border-t border-gray-700 pt-4">
                 <div class="flex justify-between"><span>Session ID:</span> <span id="receipt-id" class="font-mono text-white">--</span></div>
             </div>
-            <button onclick="localStorage.clear(); window.location.href = window.location.pathname;" class="mt-6 text-sm text-emerald-400 underline hover:text-emerald-300">Start New Session</button>
+            <button onclick="localStorage.clear(); window.location.href = window.location.pathname;" class="mt-6 text-sm text-emerald-400 underline hover:text-emerald-300">End & Start New</button>
         </div>
 
         <div class="glass p-5 rounded-3xl mb-4">
@@ -166,7 +179,6 @@
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     
     <script>
-        // CONFIG
         const VERCEL_URL = "https://charging-station-api.vercel.app";
         const SUPABASE_URL = "https://krjcrshpjucwslxyhzib.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyamNyc2hwanVjd3NseHloemliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2OTY4NjksImV4cCI6MjA4MzI3Mjg2OX0.Yyh4fTBxAfL8815HQylm3ZE8j11EkcqkbAR52YayuT4";
@@ -174,18 +186,11 @@
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         const cashfree = Cashfree({ mode: "production" });
 
-        // SPEED MULTIPLIER
         const TEST_SPEEDUP = 5; 
-        const COST_PER_10MIN = 1; // Updated to 1 Re for testing
+        const COST_PER_10MIN = 1; 
 
-        // STATE
-        let currentCapacityWh = 0;
-        let selectedChargerW = 0;
-        let calculatedCost = 1;
-        let calculatedMinutes = 10;
-        let map, routingControl;
+        let currentCapacityWh = 0, selectedChargerW = 0, calculatedCost = 1, calculatedMinutes = 10, map, routingControl;
         
-        // PRODUCTION EV DATA
         const vehicleData = {
             "2-Wheeler": { 
                 "Ola Electric": [{name:"S1 Pro", capacityWh:4000}, {name:"S1 Air", capacityWh:3000}], 
@@ -204,7 +209,6 @@
             { name: "30kW DC Fast (CCS2)", powerW: 30000 }
         ];
 
-        // RAJAM STATIONS
         const stations = [
             {name: "EV Hub 1 (GMRIT Area)", lat: 18.4603951, lng: 83.6618208},
             {name: "EV Hub 2 (Rajam Town)", lat: 18.4485, lng: 83.7656},
@@ -213,18 +217,14 @@
             {name: "EV Hub 5 (South Bypass)", lat: 18.4440, lng: 83.7620}
         ];
 
-        // INIT
         window.onload = async () => {
             initMap();
+            startLiveDashboard();
             const urlParams = new URLSearchParams(window.location.search);
             const orderId = urlParams.get('order_id');
             const minutes = urlParams.get('mins'); 
 
-            if(orderId) {
-                handlePaymentReturn(orderId, minutes);
-            } else {
-                startLiveDashboard();
-            }
+            if(orderId) handlePaymentReturn(orderId, minutes);
         };
 
         function showToast(msg, type = 'info') {
@@ -244,12 +244,10 @@
             }, 4000);
         }
 
-        // --- MAP, GEOLOCATION & ROUTING ---
+        // --- MAP & ROUTING ---
         function initMap() {
             map = L.map('ev-map', { zoomControl: false }).setView([18.4485, 83.7656], 13);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '© OpenStreetMap'
-            }).addTo(map);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
             var redIcon = new L.Icon({
               iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
@@ -257,116 +255,67 @@
               iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
             });
 
-            stations.forEach(st => {
-                L.marker([st.lat, st.lng], {icon: redIcon}).addTo(map)
-                 .bindPopup(`<strong style="color: black;">${st.name}</strong><br><span style="color: #10b981; font-weight: bold;">Status: Online</span>`);
-            });
+            stations.forEach(st => L.marker([st.lat, st.lng], {icon: redIcon}).addTo(map).bindPopup(`<strong style="color: black;">${st.name}</strong><br><span style="color: #10b981; font-weight: bold;">Status: Online</span>`));
         }
 
-        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-            const R = 6371; 
-            const dLat = (lat2-lat1) * (Math.PI/180);
-            const dLon = (lon2-lon1) * (Math.PI/180); 
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-            return R * c; 
+        function getDist(lat1, lon1, lat2, lon2) {
+            const a = Math.sin((lat2-lat1)*(Math.PI/180)/2)**2 + Math.cos(lat1*(Math.PI/180))*Math.cos(lat2*(Math.PI/180))*Math.sin((lon2-lon1)*(Math.PI/180)/2)**2; 
+            return 6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))); 
         }
 
         function locateAndRoute() {
-            if (!navigator.geolocation) {
-                showToast("Geolocation is not supported by your browser", "error");
-                return;
-            }
-
+            if (!navigator.geolocation) return showToast("Geolocation is not supported", "error");
             showToast("Acquiring GPS Signal...", "info");
 
-            navigator.geolocation.getCurrentPosition(position => {
-                const userLat = position.coords.latitude;
-                const userLng = position.coords.longitude;
-
-                let nearest = stations[0];
-                let minDist = getDistanceFromLatLonInKm(userLat, userLng, nearest.lat, nearest.lng);
-                
+            navigator.geolocation.getCurrentPosition(pos => {
+                const uLat = pos.coords.latitude, uLng = pos.coords.longitude;
+                let nearest = stations[0], minDist = getDist(uLat, uLng, nearest.lat, nearest.lng);
                 for(let i=1; i<stations.length; i++) {
-                    let dist = getDistanceFromLatLonInKm(userLat, userLng, stations[i].lat, stations[i].lng);
-                    if(dist < minDist) { minDist = dist; nearest = stations[i]; }
+                    let d = getDist(uLat, uLng, stations[i].lat, stations[i].lng);
+                    if(d < minDist) { minDist = d; nearest = stations[i]; }
                 }
 
                 showToast(`Routing to ${nearest.name}`, "info");
-
                 if(routingControl) map.removeControl(routingControl);
 
                 routingControl = L.Routing.control({
-                    waypoints: [ L.latLng(userLat, userLng), L.latLng(nearest.lat, nearest.lng) ],
-                    routeWhileDragging: false,
-                    addWaypoints: false,
-                    fitSelectedRoutes: true,
-                    lineOptions: { styles: [{color: '#10b981', weight: 4}] },
-                    createMarker: function() { return null; } 
+                    waypoints: [ L.latLng(uLat, uLng), L.latLng(nearest.lat, nearest.lng) ],
+                    routeWhileDragging: false, addWaypoints: false, fitSelectedRoutes: true,
+                    lineOptions: { styles: [{color: '#10b981', weight: 4}] }, createMarker: () => null
                 }).addTo(map);
+                L.marker([uLat, uLng]).addTo(map).bindPopup('<span style="color:black;">You</span>').openPopup();
 
-                L.marker([userLat, userLng]).addTo(map).bindPopup('<span style="color:black;">You are here</span>').openPopup();
-
-                // Listen for routing completion to display stats and tips
                 routingControl.on('routesfound', function(e) {
-                    const routes = e.routes;
-                    const summary = routes[0].summary;
-                    
-                    const distKm = (summary.totalDistance / 1000).toFixed(1);
-                    const timeMin = Math.round(summary.totalTime / 60);
+                    const sum = e.routes[0].summary;
+                    const dKm = (sum.totalDistance / 1000).toFixed(1), tMin = Math.round(sum.totalTime / 60);
                     
                     document.getElementById('route-info-panel').classList.remove('hidden');
-                    document.getElementById('route-dist').innerText = distKm + " km";
-                    document.getElementById('route-time').innerText = timeMin + " min";
+                    document.getElementById('route-dist').innerText = dKm + " km";
+                    document.getElementById('route-time').innerText = tMin + " min";
                     
-                    const tipsEl = document.getElementById('route-tips');
-                    tipsEl.innerHTML = ''; // clear old tips
-                    
-                    const batLevel = document.getElementById('battery-range') ? parseInt(document.getElementById('battery-range').value) : 20;
-                    
+                    const tipsEl = document.getElementById('route-tips'); tipsEl.innerHTML = '';
+                    const bLvl = document.getElementById('battery-range') ? parseInt(document.getElementById('battery-range').value) : 20;
                     let tips = [];
-                    // Generate smart tips based on battery and distance
-                    if (distKm > 10) {
-                        tips.push("Maintain a steady speed of 40-50 km/h for maximum range.");
-                        tips.push("Avoid harsh acceleration to prevent battery drain spikes.");
-                        if (batLevel < 15) {
-                            tips.push("Critically Low Battery! Turn off AC, headlights (if safe), and infotainment.");
-                        }
+                    if (dKm > 10) {
+                        tips.push("Maintain a steady 40-50 km/h for maximum range.");
+                        if (bLvl < 15) tips.push("Low Battery! Turn off AC and non-essential electronics.");
                     } else {
-                        tips.push("Station is close. Use regenerative braking to recover energy on arrival.");
-                        tips.push("Drive smoothly to maintain battery health.");
+                        tips.push("Station is close. Use regenerative braking on arrival.");
                     }
-                    if (batLevel < 5 && distKm > 3) {
-                        tips.push("Warning: Range anxiety risk. Request towing if power cuts completely.");
-                    }
-                    
-                    tips.forEach(t => {
-                        const li = document.createElement('li');
-                        li.innerText = t;
-                        tipsEl.appendChild(li);
-                    });
+                    tips.forEach(t => { const li = document.createElement('li'); li.innerText = t; tipsEl.appendChild(li); });
                 });
-
-            }, error => {
-                showToast("Unable to retrieve location. Please check permissions.", "error");
-            });
+            }, err => showToast("GPS Permission Denied.", "error"));
         }
 
-        // --- PAYMENT FLOW ---
+        // --- PAYMENT & BOOKING FLOW ---
         async function initiateCheckout() {
             const btn = document.getElementById('pay-btn');
-            btn.innerHTML = 'Connecting to Gateway...'; btn.disabled = true;
+            btn.innerHTML = 'Connecting...'; btn.disabled = true;
 
             try {
                 const res = await fetch(`${VERCEL_URL}/api/create_order`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ 
-                        amount: calculatedCost, 
-                        phone: "6302085024",
-                        minutes: calculatedMinutes 
-                    })
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ amount: calculatedCost, phone: "6302085024", minutes: calculatedMinutes })
                 });
                 const data = await res.json();
                 if(data.error) throw new Error(data.error);
@@ -377,52 +326,83 @@
                 });
             } catch (err) {
                 showToast(err.message, "error");
-                btn.innerHTML = `<span>Initialize Session for ₹<span id="btn-cost">${calculatedCost}</span></span> <i class="fas fa-lock text-xs"></i>`; 
+                btn.innerHTML = `<span>Pay ₹<span id="btn-cost">${calculatedCost}</span></span> <i class="fas fa-lock text-xs"></i>`; 
                 btn.disabled = false;
             }
         }
 
         async function handlePaymentReturn(orderId, minutes) {
             document.getElementById('section-form').classList.add('hidden');
-            document.getElementById('section-loading').classList.remove('hidden');
+            
+            // Check if user already activated this session
+            const activeSlot = localStorage.getItem('active_' + orderId);
+            if(activeSlot) { showReceipt(activeSlot, orderId, minutes); return; }
 
-            const cachedSlot = localStorage.getItem(orderId);
-            if (cachedSlot) {
-                showReceipt(cachedSlot, orderId, minutes);
-                return; 
-            }
+            // Check if user already has it reserved locally
+            const reservedSlot = localStorage.getItem('reserved_' + orderId);
+            if(reservedSlot) { showReservedScreen(reservedSlot, orderId, minutes); return; }
+
+            document.getElementById('section-loading').classList.remove('hidden');
 
             try {
                 const res = await fetch(`${VERCEL_URL}/api/check_status?order_id=${orderId}`);
                 const data = await res.json();
 
                 if(data.order_status === "PAID") {
-                    await assignSlot(minutes || 10, orderId);
+                    await reserveSlot(minutes || 10, orderId);
                 } else {
-                    showToast("Transaction Incomplete: " + data.order_status, "error");
+                    showToast("Payment Failed: " + data.order_status, "error");
                     setTimeout(() => { window.location.href = window.location.pathname; }, 2000);
                 }
-            } catch (err) { showToast("Verification Interrupted", "error"); }
+            } catch (err) { showToast("Verification Error", "error"); }
         }
 
-        async function assignSlot(mins, orderId) {
-            document.getElementById('loading-text').innerText = "Activating Relay...";
-            
+        // STEP 1: RESERVE THE SLOT (Does not start hardware timer yet)
+        async function reserveSlot(mins, orderId) {
+            document.getElementById('loading-text').innerText = "Reserving Port...";
             let { data: slots } = await db.from('slots').select('*').eq('is_active', false).order('id').limit(1);
-            
-            if(!slots || slots.length === 0) {
-                showToast("STATION FULL: No ports currently available.", "error"); return;
-            }
+            if(!slots || slots.length === 0) return showToast("Station Full!", "error");
 
             const freeSlot = slots[0];
             
+            // Hack to reserve: We set is_active=true so others can't take it, but set a HUGE expiry time (24 hours into future) 
+            // The frontend interprets any expiry > 2 hours as a "Reservation"
+            const indiaOffset = 5.5 * 60 * 60 * 1000;
+            const holdExpiry = Date.now() + (24 * 60 * 60 * 1000) + indiaOffset; 
+
+            await db.from('slots').update({ is_active: true, expiry_time: holdExpiry }).eq('id', freeSlot.id);
+            
+            localStorage.setItem('reserved_' + orderId, freeSlot.id);
+            showReservedScreen(freeSlot.id, orderId, mins);
+        }
+
+        function showReservedScreen(slotId, orderId, mins) {
+            document.getElementById('section-loading').classList.add('hidden');
+            document.getElementById('section-reserved').classList.remove('hidden');
+            document.getElementById('reserved-slot').innerText = "P-" + slotId;
+            showToast("Port Successfully Reserved!", "info");
+
+            // Attach click event to start charging
+            const startBtn = document.getElementById('btn-start-charge');
+            startBtn.onclick = () => activateSlot(slotId, orderId, mins);
+        }
+
+        // STEP 2: ACTIVATE THE RELAY (Starts physical hardware countdown)
+        async function activateSlot(slotId, orderId, mins) {
+            document.getElementById('section-reserved').classList.add('hidden');
+            document.getElementById('section-loading').classList.remove('hidden');
+            document.getElementById('loading-text').innerText = "Engaging Grid Power...";
+
             const realDurationMs = (mins / TEST_SPEEDUP) * 60 * 1000;
             const indiaOffset = 5.5 * 60 * 60 * 1000;
             const expiry = Date.now() + realDurationMs + indiaOffset;
 
-            await db.from('slots').update({ is_active: true, expiry_time: expiry }).eq('id', freeSlot.id);
-            localStorage.setItem(orderId, freeSlot.id);
-            showReceipt(freeSlot.id, orderId, mins);
+            await db.from('slots').update({ is_active: true, expiry_time: expiry }).eq('id', slotId);
+            
+            localStorage.removeItem('reserved_' + orderId);
+            localStorage.setItem('active_' + orderId, slotId);
+            
+            showReceipt(slotId, orderId, mins);
         }
 
         function showReceipt(slotId, orderId, totalMinutes) {
@@ -431,15 +411,13 @@
             document.getElementById('receipt-slot').innerText = "P-" + slotId;
             document.getElementById('receipt-id').innerText = orderId;
             
-            showToast("Charging Session Started successfully!", "info");
-            startLiveDashboard();
+            showToast("Power Active. Charging started!", "info");
             startProgressBar(parseInt(totalMinutes));
         }
 
         function startProgressBar(totalMinutes) {
             const totalMs = (totalMinutes / TEST_SPEEDUP) * 60 * 1000;
             const startTime = Date.now();
-            
             document.getElementById('prog-time-total').innerText = `${totalMinutes}:00`;
 
             const interval = setInterval(() => {
@@ -451,37 +429,37 @@
                     clearInterval(interval);
                     document.getElementById('session-progress').classList.replace('bg-emerald-500', 'bg-teal-700');
                     document.getElementById('receipt-slot').innerText = "DONE";
-                    showToast("Charging complete. Please disconnect.", "info");
+                    showToast("Charging complete. Disconnect safely.", "info");
                 }
                 
                 document.getElementById('session-progress').style.width = percent + "%";
-                
-                const simulatedElapsedSeconds = Math.floor((elapsedMs * TEST_SPEEDUP) / 1000);
-                const m = Math.floor(simulatedElapsedSeconds / 60).toString().padStart(2, '0');
-                const s = (simulatedElapsedSeconds % 60).toString().padStart(2, '0');
-                document.getElementById('prog-time-elapsed').innerText = `${m}:${s}`;
-                
+                const simulatedSecs = Math.floor((elapsedMs * TEST_SPEEDUP) / 1000);
+                document.getElementById('prog-time-elapsed').innerText = `${Math.floor(simulatedSecs / 60).toString().padStart(2, '0')}:${(simulatedSecs % 60).toString().padStart(2, '0')}`;
             }, 1000);
         }
 
-        function startLiveDashboard() { updateDashboard(); setInterval(updateDashboard, 5000); }
         async function updateDashboard() {
             const { data: slots } = await db.from('slots').select('*').order('id');
-            const grid = document.getElementById('relay-grid');
-            grid.innerHTML = "";
-            let busy = 0;
-            const now = Date.now() + (5.5*60*60*1000);
+            const grid = document.getElementById('relay-grid'); grid.innerHTML = "";
+            let busy = 0; const now = Date.now() + (5.5*60*60*1000);
 
             slots.forEach(slot => {
                 const div = document.createElement('div');
                 div.className = "rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-lg transition-all";
                 if(slot.is_active) {
                     busy++;
-                    let rem = Math.ceil((slot.expiry_time - now)/60000);
-                    let displayRem = rem < 0 ? 0 : rem * TEST_SPEEDUP; 
+                    let remMs = slot.expiry_time - now;
+                    let rem = Math.ceil(remMs/60000);
                     
-                    div.classList.add('bg-emerald-900/30', 'border', 'border-emerald-500/50', 'charging-glow');
-                    div.innerHTML = `<div class="text-[10px] text-emerald-200">PORT ${slot.id}</div><i class="fas fa-bolt text-emerald-400 my-2 text-xl animate-pulse"></i><div class="text-xs font-bold text-white">${displayRem}m</div>`;
+                    // If remaining time is massive (e.g., our 24h hold), show as RESERVED
+                    if (remMs > 2 * 60 * 60 * 1000) {
+                        div.classList.add('bg-yellow-900/30', 'border', 'border-yellow-500/50', 'animate-pulse');
+                        div.innerHTML = `<div class="text-[10px] text-yellow-200">PORT ${slot.id}</div><i class="fas fa-parking text-yellow-400 my-2 text-xl"></i><div class="text-[10px] font-bold text-yellow-500 mt-1">RESERVED</div>`;
+                    } else {
+                        let displayRem = rem < 0 ? 0 : rem * TEST_SPEEDUP; 
+                        div.classList.add('bg-emerald-900/30', 'border', 'border-emerald-500/50', 'charging-glow');
+                        div.innerHTML = `<div class="text-[10px] text-emerald-200">PORT ${slot.id}</div><i class="fas fa-bolt text-emerald-400 my-2 text-xl animate-pulse"></i><div class="text-xs font-bold text-white">${displayRem}m</div>`;
+                    }
                 } else {
                     div.classList.add('bg-slate-800/80', 'border', 'border-slate-700');
                     div.innerHTML = `<div class="text-[10px] text-gray-500">PORT ${slot.id}</div><i class="fas fa-plug text-gray-600 my-2 text-xl"></i><div class="text-[10px] font-bold text-emerald-600/70">IDLE</div>`;
@@ -491,20 +469,16 @@
             document.getElementById('avail-count').innerText = (8-busy)+"/8";
         }
 
-        // --- UI & REAL EV PHYSICS CALCULATION ---
         function loadBrands() {
              const sel = document.getElementById('brand-select'); sel.innerHTML='<option disabled selected>Select Manufacturer</option>';
-             document.getElementById('brand-wrapper').classList.remove('hidden');
-             document.getElementById('model-wrapper').classList.add('hidden');
-             document.getElementById('charger-wrapper').classList.add('hidden');
-             document.getElementById('battery-wrapper').classList.add('hidden');
+             document.getElementById('brand-wrapper').classList.remove('hidden'); document.getElementById('model-wrapper').classList.add('hidden');
+             document.getElementById('charger-wrapper').classList.add('hidden'); document.getElementById('battery-wrapper').classList.add('hidden');
              Object.keys(vehicleData[document.getElementById('os-select').value]).forEach(b=>sel.innerHTML+=`<option value="${b}">${b}</option>`);
         }
         function loadModels() {
              const sel = document.getElementById('model-select'); sel.innerHTML='<option disabled selected>Select Model</option>';
              document.getElementById('model-wrapper').classList.remove('hidden');
-             const os=document.getElementById('os-select').value, br=document.getElementById('brand-select').value;
-             vehicleData[os][br].forEach(m=>sel.innerHTML+=`<option value="${m.capacityWh}">${m.name}</option>`);
+             vehicleData[document.getElementById('os-select').value][document.getElementById('brand-select').value].forEach(m=>sel.innerHTML+=`<option value="${m.capacityWh}">${m.name}</option>`);
         }
         function loadChargers() {
              const sel = document.getElementById('charger-select'); sel.innerHTML='<option disabled selected>Select Charger Plug Type</option>';
@@ -523,30 +497,16 @@
              const pct = document.getElementById('battery-range').value;
              document.getElementById('battery-val').innerText = pct + "%";
              
-             if(pct > 80 && !hasWarnedThrottle) {
-                 showToast("Charging speeds reduce after 80% to protect battery cell health.", "warn");
-                 hasWarnedThrottle = true;
-             } else if (pct <= 80) {
-                 hasWarnedThrottle = false;
-             }
+             if(pct > 80 && !hasWarnedThrottle) { showToast("Speeds reduce after 80% to protect cells.", "warn"); hasWarnedThrottle = true; } 
+             else if (pct <= 80) hasWarnedThrottle = false;
 
              const neededWh = currentCapacityWh * ((100 - pct) / 100);
-             let mins = Math.ceil((neededWh / selectedChargerW) * 60 / 0.9);
-             mins = Math.max(10, mins);
-             calculatedMinutes = mins;
-
-             // Adjusted Pricing calculation: ₹1 per 10 mins
-             calculatedCost = Math.ceil(mins / 10) * COST_PER_10MIN;
+             let mins = Math.max(10, Math.ceil((neededWh / selectedChargerW) * 60 / 0.9));
+             calculatedMinutes = mins; calculatedCost = Math.ceil(mins / 10) * COST_PER_10MIN;
              
              document.getElementById('time-display').innerText = mins + " m";
              document.getElementById('cost-display').innerText = "₹" + calculatedCost;
              document.getElementById('btn-cost').innerText = calculatedCost;
-             
-             // If a route is already generated, update tips if battery slider changes
-             if (!document.getElementById('route-info-panel').classList.contains('hidden')) {
-                 // Trigger routesfound logic update manually if you wanted, 
-                 // but leaving as-is is fine since it evaluates battery at the moment of routing.
-             }
         }
     </script>
 </body>

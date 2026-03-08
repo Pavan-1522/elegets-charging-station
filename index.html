@@ -44,7 +44,7 @@
         <div id="login-box" class="glass p-8 rounded-3xl max-w-sm w-full border border-emerald-500/30 text-center relative overflow-hidden">
             <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
             <h2 class="text-2xl font-bold font-mono text-emerald-400 mb-1">Welcome Back</h2>
-            <p class="text-xs text-gray-400 mb-6">Login to access Elegets EV Network</p>
+            <p class="text-xs text-gray-400 mb-6">Login to access Autonomous Smart EV Network</p>
             <div class="space-y-3">
                 <input type="email" id="log-email" placeholder="Email Address" class="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-white outline-none focus:border-emerald-500">
                 <input type="password" id="log-pass" placeholder="Password" class="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-white outline-none focus:border-emerald-500">
@@ -191,7 +191,7 @@
                     <p class="text-xs text-center text-gray-500 pt-4">Loading history...</p>
                 </div>
             </div>
-            <div class="text-center pb-4"><p class="text-[10px] text-gray-600 tracking-widest uppercase">Elegets Security Protocol V2</p></div>
+            <div class="text-center pb-4"><p class="text-[10px] text-gray-600 tracking-widest uppercase">Autonomous Smart EV Security Protocol V2</p></div>
         </div>
     </main>
 
@@ -373,7 +373,7 @@
                 await fbDb.ref('users/' + cred.user.uid + '/profile').set({
                     name: name, phone: phone, email: email, cancelsToday: 0, lastCancelDate: new Date().toDateString()
                 });
-                showToast("Welcome to Elegets Network!", "info");
+                showToast("Welcome to Autonomous Smart EV Network!", "info");
             } catch (error) { showToast(error.message, "error"); }
         }
 

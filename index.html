@@ -212,10 +212,7 @@
             appId: "1:612229097630:web:1a635d8de5a408b7c2338f",
             measurementId: "G-Y2L38EV407"
         };
-        // Initialize Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const fbAuth = firebase.auth();
         const fbDb = firebase.database();
 
@@ -231,7 +228,6 @@
         const TEST_SPEEDUP = 5; 
         const COST_PER_10MIN = 1; 
 
-        // Global State
         let currentUser = null;
         let userData = null;
         let currentCapacityWh = 0, selectedChargerW = 0, calculatedCost = 1, calculatedMinutes = 10;
@@ -248,16 +244,22 @@
         ];
 
         /* ==============================================
-           3. CORE UTILITIES (TOAST & MAPS)
+           3. URL PARSING & APP INIT
            ============================================== */
         window.onload = async () => {
             initMap();
             startLiveDashboard();
+            
             const urlParams = new URLSearchParams(window.location.search);
             const orderId = urlParams.get('order_id');
             const minutes = urlParams.get('mins'); 
+            const amt = urlParams.get('amt');
 
-            if(orderId) handlePaymentReturn(orderId, minutes);
+            if(orderId) {
+                // GLITCH FIX #1: Scrub the URL so refreshing doesn't loop the payment handler
+                window.history.replaceState(null, '', window.location.pathname);
+                handlePaymentReturn(orderId, minutes, amt);
+            }
         };
 
         function showToast(msg, type = 'info') {
@@ -277,6 +279,9 @@
             }, 4000);
         }
 
+        /* ==============================================
+           MAPS & ROUTING
+           ============================================== */
         function initMap() {
             map = L.map('ev-map', { zoomControl: false }).setView([18.4485, 83.7656], 13);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
@@ -333,7 +338,7 @@
         }
 
         /* ==============================================
-           4. AUTHENTICATION LOGIC (Firebase)
+           FIREBASE AUTH
            ============================================== */
         fbAuth.onAuthStateChanged((user) => {
             if (user) {
@@ -390,7 +395,7 @@
         function logoutUser() { fbAuth.signOut(); }
 
         /* ==============================================
-           5. DASHBOARD & PROFILE LOGIC (RTDB Sync)
+           DASHBOARD & RTDB SYNC
            ============================================== */
         function fetchUserProfile() {
             fbDb.ref('users/' + currentUser.uid).on('value', (snapshot) => {
@@ -518,7 +523,7 @@
         }
 
         /* ==============================================
-           6. BOOKING, ALLOCATION, START, CANCEL
+           BOOKING & CANCELLATION LOGIC
            ============================================== */
         async function initiateCheckout() {
             if(!userData) return showToast("User profile not loaded yet.", "error");
@@ -541,18 +546,31 @@
             } catch (err) { showToast(err.message, "error"); btn.innerHTML = "Pay to Reserve"; btn.disabled = false; }
         }
 
-        async function handlePaymentReturn(orderId, minutes) {
-            const amt = new URLSearchParams(window.location.search).get('amt') || calculatedCost;
+        async function handlePaymentReturn(orderId, minutes, amt) {
+            amt = amt || calculatedCost;
             document.getElementById('section-form').classList.add('hidden');
             document.getElementById('section-loading').classList.remove('hidden');
 
             setTimeout(() => {
                 if(!currentUser) return showToast("Please login to see your booking.", "error");
                 
-                fbDb.ref('users/'+currentUser.uid+'/activeSession').once('value').then(async (snap) => {
-                    if(snap.exists() && snap.val().orderId === orderId) {
+                fbDb.ref('users/'+currentUser.uid).once('value').then(async (snap) => {
+                    const userDataAll = snap.val() || {};
+                    
+                    // Already an active session for this order?
+                    if(userDataAll.activeSession && userDataAll.activeSession.orderId === orderId) {
                         document.getElementById('section-loading').classList.add('hidden');
                         switchTab('dash'); return;
+                    }
+
+                    // GLITCH FIX #2: Did they already refund/complete this order in the past?
+                    if(userDataAll.transactions) {
+                        const pastTxs = Object.values(userDataAll.transactions);
+                        if(pastTxs.some(tx => tx.id === orderId)) {
+                            document.getElementById('section-loading').classList.add('hidden');
+                            switchTab('dash');
+                            return showToast("Session already completed or refunded.", "warn");
+                        }
                     }
 
                     try {
@@ -603,9 +621,8 @@
         }
 
         async function cancelBooking() {
-            // 1. Change button text to show loading state instead of looking for old HTML elements
             const btnCancel = document.getElementById('btn-cancel-charge');
-            const originalText = btnCancel.innerText;
+            const originalText = btnCancel ? btnCancel.innerText : "Cancel & Refund";
             if (btnCancel) {
                 btnCancel.disabled = true;
                 btnCancel.innerText = "Processing Refund...";
@@ -616,53 +633,33 @@
                 if(!session) return;
 
                 try {
-                    // 2. Call Vercel Backend to process Real Cashfree Refund
                     const refundRes = await fetch(`${VERCEL_URL}/api/cancel_order`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            order_id: session.orderId, 
-                            amount: session.amount 
-                        })
+                        body: JSON.stringify({ order_id: session.orderId, amount: session.amount })
                     });
                     
                     const refundData = await refundRes.json();
-                    
                     if(!refundRes.ok) throw new Error(refundData.error || "Refund request failed at gateway.");
 
-                    // 3. Refund Success! Now penalize user trust score
-                    await fbDb.ref('users/'+currentUser.uid+'/profile').update({ 
-                        cancelsToday: (userData.cancelsToday || 0) + 1 
-                    });
-
-                    // 4. Free the physical hardware slot in Supabase (if not virtual)
+                    await fbDb.ref('users/'+currentUser.uid+'/profile').update({ cancelsToday: (userData.cancelsToday || 0) + 1 });
                     if(session.slotId !== "VQ") {
                         await db.from('slots').update({ is_active: false, expiry_time: 0 }).eq('id', session.slotId);
                     }
 
-                    // 5. Log the transaction and clear active session
                     logTransaction(session.orderId, session.amount, "Refunded");
                     await fbDb.ref('users/'+currentUser.uid+'/activeSession').remove();
-                    
-                    // Note: We DO NOT need to manually update the HTML here.
-                    // The live Firebase listener will automatically notice the session is gone
-                    // and update the Dashboard UI to "No active bookings" instantly!
-                    
                     showToast("Slot cancelled. Auto-refund initiated to your bank.", "info");
 
                 } catch (err) {
-                    // If refund fails, revert the button back to normal so they can try again
-                    if (btnCancel) {
-                        btnCancel.disabled = false;
-                        btnCancel.innerText = originalText;
-                    }
+                    if (btnCancel) { btnCancel.disabled = false; btnCancel.innerText = originalText; }
                     showToast(err.message, "error");
                 }
             });
         }
 
         /* ==============================================
-           7. FORM CALCULATIONS & LIVE DASHBOARD
+           FORM & DASHBOARD UPDATES
            ============================================== */
         function loadBrands() { const sel=document.getElementById('brand-select'); sel.innerHTML='<option disabled selected>Brand</option>'; document.getElementById('brand-wrapper').classList.remove('hidden'); document.getElementById('model-wrapper').classList.add('hidden'); document.getElementById('charger-wrapper').classList.add('hidden'); document.getElementById('battery-wrapper').classList.add('hidden'); Object.keys(vehicleDataMap[document.getElementById('os-select').value]).forEach(b=>sel.innerHTML+=`<option value="${b}">${b}</option>`); }
         function loadModels() { const sel=document.getElementById('model-select'); sel.innerHTML='<option disabled selected>Model</option>'; document.getElementById('model-wrapper').classList.remove('hidden'); vehicleDataMap[document.getElementById('os-select').value][document.getElementById('brand-select').value].forEach(m=>sel.innerHTML+=`<option value="${m.capacityWh}">${m.name}</option>`); }
@@ -679,7 +676,6 @@
             document.getElementById('cost-display').innerText = "₹" + calculatedCost; 
             document.getElementById('btn-cost').innerText = calculatedCost; 
         }
-
 
         function startLiveDashboard() { updateDashboard(); setInterval(updateDashboard, 5000); }
         async function updateDashboard() {

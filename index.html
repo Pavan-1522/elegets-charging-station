@@ -111,11 +111,19 @@
                 <h2 class="text-lg font-semibold mb-4"><i class="fas fa-bolt text-emerald-400 mr-2"></i>Configure Session</h2>
                 <div class="space-y-4">
                     <select id="os-select" onchange="loadBrands()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500">
-                        <option value="" disabled selected>Select Vehicle Category</option><option value="2-Wheeler">2-Wheeler</option><option value="4-Wheeler">4-Wheeler</option>
+                        <option value="" disabled selected>Select Vehicle Category</option>
+                        <option value="2-Wheeler">2-Wheeler</option>
+                        <option value="4-Wheeler">4-Wheeler</option>
                     </select>
-                    <div id="brand-wrapper" class="hidden"><select id="brand-select" onchange="loadModels()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500"></select></div>
-                    <div id="model-wrapper" class="hidden"><select id="model-select" onchange="loadChargers()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500"></select></div>
-                    <div id="charger-wrapper" class="hidden"><select id="charger-select" onchange="enableBatteryInput()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500"></select></div>
+                    <div id="brand-wrapper" class="hidden">
+                        <select id="brand-select" onchange="loadModels()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500"></select>
+                    </div>
+                    <div id="model-wrapper" class="hidden">
+                        <select id="model-select" onchange="loadChargers()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500"></select>
+                    </div>
+                    <div id="charger-wrapper" class="hidden">
+                        <select id="charger-select" onchange="enableBatteryInput()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500"></select>
+                    </div>
                     <div id="battery-wrapper" class="hidden pt-2">
                         <div class="flex justify-between mb-2">
                             <label class="text-xs text-gray-400 uppercase">Current Battery</label><span id="battery-val" class="text-emerald-400 font-bold text-sm">20%</span>
@@ -193,7 +201,7 @@
             </div>
             <div class="text-center pb-4"><p class="text-[10px] text-gray-600 tracking-widest uppercase">Autonomous Smart EV Security Protocol V2</p></div>
         </div>
-    </main>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
@@ -225,6 +233,9 @@
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         const cashfree = Cashfree({ mode: "production" });
 
+        /* ==============================================
+           3. APP STATE & CACHED DOM ELEMENTS
+           ============================================== */
         const TEST_SPEEDUP = 5; 
         const COST_PER_10MIN = 1; 
 
@@ -233,20 +244,62 @@
         let currentCapacityWh = 0, selectedChargerW = 0, calculatedCost = 1, calculatedMinutes = 10;
         let map, routingControl, userEtaMins = 0, cancelInterval = null;
 
+        // Optimized DOM references
+        const DOM = {};
+        document.addEventListener("DOMContentLoaded", () => {
+            DOM.toastContainer = document.getElementById('toast-container');
+            DOM.routeInfoPanel = document.getElementById('route-info-panel');
+            DOM.routeDist = document.getElementById('route-dist');
+            DOM.routeTime = document.getElementById('route-time');
+            DOM.routeTips = document.getElementById('route-tips');
+            
+            DOM.osSelect = document.getElementById('os-select');
+            DOM.brandSelect = document.getElementById('brand-select');
+            DOM.modelSelect = document.getElementById('model-select');
+            DOM.chargerSelect = document.getElementById('charger-select');
+            
+            DOM.brandWrapper = document.getElementById('brand-wrapper');
+            DOM.modelWrapper = document.getElementById('model-wrapper');
+            DOM.chargerWrapper = document.getElementById('charger-wrapper');
+            DOM.batteryWrapper = document.getElementById('battery-wrapper');
+            
+            DOM.batteryRange = document.getElementById('battery-range');
+            DOM.batteryVal = document.getElementById('battery-val');
+            DOM.timeDisplay = document.getElementById('time-display');
+            DOM.costDisplay = document.getElementById('cost-display');
+            DOM.btnCost = document.getElementById('btn-cost');
+            DOM.payBtn = document.getElementById('pay-btn');
+        });
+
+        // Expanded Vehicle Database
         const vehicleDataMap = {
-            "2-Wheeler": { "Ola Electric": [{name:"S1 Pro", capacityWh:4000}], "Ather Energy": [{name:"450X", capacityWh:3700}] },
-            "4-Wheeler": { "Tata Motors": [{name:"Nexon EV", capacityWh:30000}], "MG Motor": [{name:"ZS EV", capacityWh:50000}] }
+            "2-Wheeler": { 
+                "Ola Electric": [{name:"S1 Pro", capacityWh:4000}, {name:"S1 Air", capacityWh:3000}, {name:"S1 X", capacityWh:2000}], 
+                "Ather Energy": [{name:"450X", capacityWh:3700}, {name:"450S", capacityWh:2900}],
+                "TVS": [{name:"iQube", capacityWh:3040}, {name:"iQube ST", capacityWh:4560}],
+                "Bajaj": [{name:"Chetak", capacityWh:2880}],
+                "Vida": [{name:"V1 Pro", capacityWh:3940}]
+            },
+            "4-Wheeler": { 
+                "Tata Motors": [{name:"Nexon EV LR", capacityWh:40500}, {name:"Nexon EV MR", capacityWh:30000}, {name:"Tiago EV LR", capacityWh:24000}, {name:"Punch EV LR", capacityWh:35000}], 
+                "MG Motor": [{name:"ZS EV", capacityWh:50300}, {name:"Comet EV", capacityWh:17300}],
+                "Mahindra": [{name:"XUV400 EL", capacityWh:39400}, {name:"XUV400 EC", capacityWh:34500}],
+                "Hyundai": [{name:"Kona Electric", capacityWh:39200}, {name:"Ioniq 5", capacityWh:72600}],
+                "BYD": [{name:"Atto 3", capacityWh:60480}, {name:"Seal", capacityWh:82500}],
+                "Kia": [{name:"EV6", capacityWh:77400}]
+            }
         };
-        const chargerDataMap = [ { name: "3.3kW AC Slow", powerW: 3300 }, { name: "30kW DC Fast", powerW: 30000 } ];
+        const chargerDataMap = [ { name: "3.3kW AC Slow", powerW: 3300 }, { name: "7.2kW AC Fast", powerW: 7200 }, { name: "30kW DC Fast", powerW: 30000 } ];
         const stationsArr = [ 
             {name: "EV Hub 1 (GMRIT Area)", lat: 18.4603951, lng: 83.6618208},
             {name: "EV Hub 2 (Rajam Town)", lat: 18.4485, lng: 83.7656}
         ];
 
         /* ==============================================
-           3. URL PARSING & APP INIT
+           4. INITIALIZATION & LOCATION
            ============================================== */
         window.onload = async () => {
+            requestLocationPermission();
             initMap();
             startLiveDashboard();
             
@@ -256,11 +309,24 @@
             const amt = urlParams.get('amt');
 
             if(orderId) {
-                // GLITCH FIX #1: Scrub the URL so refreshing doesn't loop the payment handler
                 window.history.replaceState(null, '', window.location.pathname);
                 handlePaymentReturn(orderId, minutes, amt);
             }
         };
+
+        function requestLocationPermission() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        showToast("Location access granted.", "info");
+                        locateAndRoute(pos); // Auto route if granted
+                    },
+                    (err) => {
+                        console.warn("Location permission denied on load.", err);
+                    }
+                );
+            }
+        }
 
         function showToast(msg, type = 'info') {
             const container = document.getElementById('toast-container');
@@ -300,11 +366,10 @@
             return 6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))); 
         }
 
-        function locateAndRoute() {
+        function locateAndRoute(cachedPos = null) {
             if (!navigator.geolocation) return showToast("GPS not supported", "error");
-            showToast("Acquiring GPS Signal...", "info");
             
-            navigator.geolocation.getCurrentPosition(pos => {
+            const processPosition = (pos) => {
                 const uLat = pos.coords.latitude, uLng = pos.coords.longitude;
                 let nearest = stationsArr[0], minDist = getDist(uLat, uLng, nearest.lat, nearest.lng);
                 for(let i=1; i<stationsArr.length; i++) {
@@ -323,18 +388,24 @@
                     const sum = e.routes[0].summary;
                     userEtaMins = Math.round(sum.totalTime / 60);
                     
-                    document.getElementById('route-info-panel').classList.remove('hidden');
-                    document.getElementById('route-dist').innerText = (sum.totalDistance / 1000).toFixed(1) + " km";
-                    document.getElementById('route-time').innerText = userEtaMins + " min";
+                    DOM.routeInfoPanel.classList.remove('hidden');
+                    DOM.routeDist.innerText = (sum.totalDistance / 1000).toFixed(1) + " km";
+                    DOM.routeTime.innerText = userEtaMins + " min";
                     
-                    const tipsEl = document.getElementById('route-tips');
                     if (userEtaMins > 30) {
-                        tipsEl.innerHTML = "<li><b>ETA > 30m:</b> Virtual queue active. We will allocate your hardware slot closer to arrival.</li>";
+                        DOM.routeTips.innerHTML = "<li><b>ETA > 30m:</b> Virtual queue active. We will allocate your hardware slot closer to arrival.</li>";
                     } else {
-                        tipsEl.innerHTML = "<li><b>ETA < 30m:</b> Hardware port will be locked exclusively for you upon payment.</li>";
+                        DOM.routeTips.innerHTML = "<li><b>ETA < 30m:</b> Hardware port will be locked exclusively for you upon payment.</li>";
                     }
                 });
-            }, err => showToast("GPS Denied.", "error"));
+            };
+
+            if (cachedPos) {
+                processPosition(cachedPos);
+            } else {
+                showToast("Acquiring GPS Signal...", "info");
+                navigator.geolocation.getCurrentPosition(processPosition, err => showToast("GPS Denied. Cannot calculate ETA.", "error"));
+            }
         }
 
         /* ==============================================
@@ -529,7 +600,7 @@
             if(!userData) return showToast("User profile not loaded yet.", "error");
             if(userData.cancelsToday >= 3) return showToast("Account Blocked due to suspicious activity.", "error");
 
-            const btn = document.getElementById('pay-btn'); btn.innerHTML = 'Connecting...'; btn.disabled = true;
+            DOM.payBtn.innerHTML = 'Connecting...'; DOM.payBtn.disabled = true;
 
             try {
                 const res = await fetch(`${VERCEL_URL}/api/create_order`, {
@@ -543,7 +614,7 @@
                     paymentSessionId: data.payment_session_id,
                     returnUrl: `https://pavan-1522.github.io/elegets-charging-station/?order_id=${data.order_id}&mins=${calculatedMinutes}&amt=${calculatedCost}`
                 });
-            } catch (err) { showToast(err.message, "error"); btn.innerHTML = "Pay to Reserve"; btn.disabled = false; }
+            } catch (err) { showToast(err.message, "error"); DOM.payBtn.innerHTML = "Pay to Reserve"; DOM.payBtn.disabled = false; }
         }
 
         async function handlePaymentReturn(orderId, minutes, amt) {
@@ -557,13 +628,11 @@
                 fbDb.ref('users/'+currentUser.uid).once('value').then(async (snap) => {
                     const userDataAll = snap.val() || {};
                     
-                    // Already an active session for this order?
                     if(userDataAll.activeSession && userDataAll.activeSession.orderId === orderId) {
                         document.getElementById('section-loading').classList.add('hidden');
                         switchTab('dash'); return;
                     }
 
-                    // GLITCH FIX #2: Did they already refund/complete this order in the past?
                     if(userDataAll.transactions) {
                         const pastTxs = Object.values(userDataAll.transactions);
                         if(pastTxs.some(tx => tx.id === orderId)) {
@@ -659,24 +728,50 @@
         }
 
         /* ==============================================
-           FORM & DASHBOARD UPDATES
+           FORM UPDATES (OPTIMIZED)
            ============================================== */
-        function loadBrands() { const sel=document.getElementById('brand-select'); sel.innerHTML='<option disabled selected>Brand</option>'; document.getElementById('brand-wrapper').classList.remove('hidden'); document.getElementById('model-wrapper').classList.add('hidden'); document.getElementById('charger-wrapper').classList.add('hidden'); document.getElementById('battery-wrapper').classList.add('hidden'); Object.keys(vehicleDataMap[document.getElementById('os-select').value]).forEach(b=>sel.innerHTML+=`<option value="${b}">${b}</option>`); }
-        function loadModels() { const sel=document.getElementById('model-select'); sel.innerHTML='<option disabled selected>Model</option>'; document.getElementById('model-wrapper').classList.remove('hidden'); vehicleDataMap[document.getElementById('os-select').value][document.getElementById('brand-select').value].forEach(m=>sel.innerHTML+=`<option value="${m.capacityWh}">${m.name}</option>`); }
-        function loadChargers() { const sel=document.getElementById('charger-select'); sel.innerHTML='<option disabled selected>Charger</option>'; document.getElementById('charger-wrapper').classList.remove('hidden'); chargerDataMap.forEach(c=>sel.innerHTML+=`<option value="${c.powerW}">${c.name}</option>`); }
-        function enableBatteryInput() { document.getElementById('battery-wrapper').classList.remove('hidden'); currentCapacityWh=parseInt(document.getElementById('model-select').value); selectedChargerW=parseInt(document.getElementById('charger-select').value); calculatePrediction(); }
+        function loadBrands() { 
+            DOM.brandSelect.innerHTML = '<option disabled selected>Brand</option>'; 
+            DOM.brandWrapper.classList.remove('hidden'); 
+            DOM.modelWrapper.classList.add('hidden'); 
+            DOM.chargerWrapper.classList.add('hidden'); 
+            DOM.batteryWrapper.classList.add('hidden'); 
+            Object.keys(vehicleDataMap[DOM.osSelect.value]).forEach(b => DOM.brandSelect.innerHTML += `<option value="${b}">${b}</option>`); 
+        }
+
+        function loadModels() { 
+            DOM.modelSelect.innerHTML = '<option disabled selected>Model</option>'; 
+            DOM.modelWrapper.classList.remove('hidden'); 
+            vehicleDataMap[DOM.osSelect.value][DOM.brandSelect.value].forEach(m => DOM.modelSelect.innerHTML += `<option value="${m.capacityWh}">${m.name}</option>`); 
+        }
+
+        function loadChargers() { 
+            DOM.chargerSelect.innerHTML = '<option disabled selected>Charger</option>'; 
+            DOM.chargerWrapper.classList.remove('hidden'); 
+            chargerDataMap.forEach(c => DOM.chargerSelect.innerHTML += `<option value="${c.powerW}">${c.name}</option>`); 
+        }
+
+        function enableBatteryInput() { 
+            DOM.batteryWrapper.classList.remove('hidden'); 
+            currentCapacityWh = parseInt(DOM.modelSelect.value); 
+            selectedChargerW = parseInt(DOM.chargerSelect.value); 
+            calculatePrediction(); 
+        }
         
         function calculatePrediction() { 
-            const pct = document.getElementById('battery-range').value; 
-            document.getElementById('battery-val').innerText = pct + "%"; 
+            const pct = DOM.batteryRange.value; 
+            DOM.batteryVal.innerText = pct + "%"; 
             const neededWh = currentCapacityWh * ((100 - pct) / 100); 
             calculatedMinutes = Math.max(10, Math.ceil((neededWh / selectedChargerW) * 60 / 0.9)); 
             calculatedCost = Math.ceil(calculatedMinutes / 10) * COST_PER_10MIN; 
-            document.getElementById('time-display').innerText = calculatedMinutes + " m"; 
-            document.getElementById('cost-display').innerText = "₹" + calculatedCost; 
-            document.getElementById('btn-cost').innerText = calculatedCost; 
+            DOM.timeDisplay.innerText = calculatedMinutes + " m"; 
+            DOM.costDisplay.innerText = "₹" + calculatedCost; 
+            DOM.btnCost.innerText = calculatedCost; 
         }
 
+        /* ==============================================
+           LIVE DASHBOARD LOGIC
+           ============================================== */
         function startLiveDashboard() { updateDashboard(); setInterval(updateDashboard, 5000); }
         async function updateDashboard() {
             const { data: slots } = await db.from('slots').select('*').lt('id', 5).order('id');

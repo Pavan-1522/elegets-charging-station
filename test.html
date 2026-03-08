@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Smart EV Charge Station | Pro</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap');
+        body { background: radial-gradient(circle at top right, #064e3b 0%, #0f172a 40%, #020617 100%); color: white; font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2); }
+        .slot-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        @keyframes glow { 0% { box-shadow: 0 0 5px #10b981; } 50% { box-shadow: 0 0 20px #10b981; } 100% { box-shadow: 0 0 5px #10b981; } }
+        .charging-glow { animation: glow 2s infinite; border-color: #10b981; }
+        #ev-map { height: 260px; width: 100%; border-radius: 1rem; z-index: 10; }
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #0f172a; color: white; border: 1px solid #334155; }
+        .leaflet-routing-container { display: none !important; }
+        
+        /* Custom Scrollbar for Transactions */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen pb-20 relative">
+
+    <div id="toast-container" class="fixed top-4 left-1/2 transform -translate-x-1/2 w-full max-w-sm z-[200] flex flex-col gap-2 px-4 pointer-events-none"></div>
+
+    <div id="auth-overlay" class="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4">
+        
+        <div id="login-box" class="glass p-8 rounded-3xl max-w-sm w-full border border-emerald-500/30 text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+            <h2 class="text-2xl font-bold font-mono text-emerald-400 mb-1">Welcome Back</h2>
+            <p class="text-xs text-gray-400 mb-6">Login to access Elegets EV Network</p>
+            <div class="space-y-3">
+                <input type="email" id="log-email" placeholder="Email Address" class="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-white outline-none focus:border-emerald-500">
+                <input type="password" id="log-pass" placeholder="Password" class="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-white outline-none focus:border-emerald-500">
+                <button onclick="loginUser()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95 text-sm mt-2">Login Securely</button>
+            </div>
+            <div class="mt-4 text-xs text-gray-400 flex justify-between">
+                <button onclick="toggleAuth('forgot')" class="hover:text-emerald-400">Forgot Password?</button>
+                <button onclick="toggleAuth('register')" class="text-emerald-400 hover:text-emerald-300 font-bold">Create Account</button>
+            </div>
+        </div>
+
+        <div id="register-box" class="hidden glass p-8 rounded-3xl max-w-sm w-full border border-teal-500/30 text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-teal-500 to-emerald-500"></div>
+            <h2 class="text-2xl font-bold font-mono text-teal-400 mb-1">Join the Grid</h2>
+            <p class="text-xs text-gray-400 mb-6">Create your smart charging profile</p>
+            <div class="space-y-3">
+                <input type="text" id="reg-name" placeholder="Full Name" class="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-white outline-none focus:border-teal-500">
+                <input type="tel" id="reg-phone" placeholder="Phone Number" class="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-white outline-none focus:border-teal-500">
+                <input type="email" id="reg-email" placeholder="Email Address" class="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-white outline-none focus:border-teal-500">
+                <input type="password" id="reg-pass" placeholder="Create Password" class="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-white outline-none focus:border-teal-500">
+                <button onclick="registerUser()" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95 text-sm mt-2">Create Account</button>
+            </div>
+            <button onclick="toggleAuth('login')" class="mt-4 text-xs text-gray-400 hover:text-teal-400">Already have an account? Login</button>
+        </div>
+
+        <div id="forgot-box" class="hidden glass p-8 rounded-3xl max-w-sm w-full border border-yellow-500/30 text-center relative overflow-hidden">
+            <h2 class="text-xl font-bold font-mono text-yellow-400 mb-4">Reset Password</h2>
+            <input type="email" id="forgot-email" placeholder="Enter Account Email" class="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm text-white outline-none mb-4">
+            <button onclick="resetPassword()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95 text-sm">Send Reset Link</button>
+            <button onclick="toggleAuth('login')" class="mt-4 text-xs text-gray-400 hover:text-yellow-400">Back to Login</button>
+        </div>
+    </div>
+
+    <div id="main-app" class="hidden w-full max-w-lg mx-auto p-4 space-y-6">
+        
+        <nav class="flex justify-between items-center bg-slate-900/80 p-3 rounded-2xl border border-slate-700 sticky top-2 z-50 backdrop-blur-md">
+            <div class="flex gap-2">
+                <button onclick="switchTab('charge')" id="tab-charge" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all"><i class="fas fa-bolt mr-1"></i> Charge Hub</button>
+                <button onclick="switchTab('dash')" id="tab-dash" class="px-4 py-2 bg-slate-800 text-gray-400 rounded-xl text-xs font-bold transition-all hover:text-white"><i class="fas fa-user mr-1"></i> Dashboard</button>
+            </div>
+            <button onclick="logoutUser()" class="w-8 h-8 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"><i class="fas fa-sign-out-alt text-xs"></i></button>
+        </nav>
+
+        <div id="view-charge" class="space-y-6 animate-fade-in">
+            
+            <div class="glass p-2 rounded-3xl relative overflow-hidden">
+                <div id="ev-map"></div>
+                <div class="flex justify-between items-center px-2 mt-2 pb-1">
+                    <p class="text-[10px] text-gray-400 uppercase tracking-widest"><i class="fas fa-map-marker-alt text-red-500 mr-1"></i> Rajam Grid</p>
+                    <button onclick="locateAndRoute()" class="text-[10px] bg-emerald-600/20 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/50 hover:bg-emerald-600/40 transition-colors"><i class="fas fa-location-arrow mr-1"></i> Find Nearest</button>
+                </div>
+                
+                <div id="route-info-panel" class="hidden mt-3 mb-1 p-4 bg-slate-900/80 rounded-2xl border border-emerald-500/30">
+                    <div class="flex justify-between items-center mb-3 border-b border-slate-700 pb-3">
+                        <div><p class="text-[10px] text-gray-400 uppercase tracking-widest">Distance</p><h4 class="text-xl font-bold text-white" id="route-dist">-- km</h4></div>
+                        <div class="text-right"><p class="text-[10px] text-gray-400 uppercase tracking-widest">ETA</p><h4 class="text-xl font-bold text-emerald-400" id="route-time">-- min</h4></div>
+                    </div>
+                    <ul class="text-[10px] text-gray-300 list-disc pl-4 space-y-1" id="route-tips"></ul>
+                </div>
+            </div>
+
+            <div id="section-form" class="glass p-6 rounded-3xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+                <h2 class="text-lg font-semibold mb-4"><i class="fas fa-bolt text-emerald-400 mr-2"></i>Configure Session</h2>
+                <div class="space-y-4">
+                    <select id="os-select" onchange="loadBrands()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500">
+                        <option value="" disabled selected>Select Vehicle Category</option><option value="2-Wheeler">2-Wheeler</option><option value="4-Wheeler">4-Wheeler</option>
+                    </select>
+                    <div id="brand-wrapper" class="hidden"><select id="brand-select" onchange="loadModels()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500"></select></div>
+                    <div id="model-wrapper" class="hidden"><select id="model-select" onchange="loadChargers()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500"></select></div>
+                    <div id="charger-wrapper" class="hidden"><select id="charger-select" onchange="enableBatteryInput()" class="w-full bg-slate-900/70 border border-slate-700 text-white text-sm rounded-xl p-3 outline-none focus:border-emerald-500"></select></div>
+                    <div id="battery-wrapper" class="hidden pt-2">
+                        <div class="flex justify-between mb-2">
+                            <label class="text-xs text-gray-400 uppercase">Current Battery</label><span id="battery-val" class="text-emerald-400 font-bold text-sm">20%</span>
+                        </div>
+                        <input type="range" id="battery-range" min="1" max="99" value="20" oninput="calculatePrediction()" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                        <div class="mt-4 bg-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                            <div><p class="text-[10px] text-emerald-400 uppercase mb-1">Time</p><h3 class="text-xl font-bold text-white" id="time-display">-- min</h3></div>
+                            <div class="text-right"><p class="text-[10px] text-gray-400 uppercase mb-1">Cost (₹1/10m)</p><h3 class="text-xl font-bold text-teal-400" id="cost-display">₹--</h3></div>
+                        </div>
+                        <button id="pay-btn" onclick="initiateCheckout()" class="w-full mt-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 text-sm flex items-center justify-center gap-2">
+                            <span>Pay ₹<span id="btn-cost">1</span> to Reserve</span> <i class="fas fa-lock text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="glass p-5 rounded-3xl mb-4">
+                <div class="flex justify-between mb-4 items-center">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase"><i class="fas fa-server mr-2"></i> Grid Hardware</h3>
+                    <span id="avail-count" class="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-lg">4/4 Free</span>
+                </div>
+                <div id="relay-grid" class="slot-grid"></div>
+            </div>
+            
+            <div id="section-loading" class="hidden text-center py-10 glass rounded-3xl">
+                <div class="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <h3 id="loading-text" class="text-sm font-bold text-emerald-400">Processing Allocation...</h3>
+            </div>
+        </div>
+
+        <div id="view-dash" class="hidden space-y-6 animate-fade-in">
+            
+            <div class="glass p-5 rounded-3xl relative overflow-hidden flex items-center gap-4">
+                <div class="absolute top-0 right-0 p-4 opacity-10"><i class="fas fa-fingerprint text-6xl"></i></div>
+                <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-2xl font-bold text-emerald-500 border-2 border-emerald-500/50" id="profile-initial">?</div>
+                <div>
+                    <h2 class="text-xl font-bold text-white" id="profile-name">Loading...</h2>
+                    <p class="text-xs text-gray-400 mb-2" id="profile-contact">--</p>
+                    <span id="profile-rank" class="text-[10px] bg-emerald-600/20 text-emerald-400 px-2 py-1 rounded-full border border-emerald-500/50 uppercase font-bold tracking-widest shadow-lg shadow-emerald-500/20">Rank: Evaluating</span>
+                </div>
+            </div>
+
+            <div class="glass p-6 rounded-3xl border border-emerald-500/30">
+                <h3 class="text-xs font-bold text-gray-400 uppercase mb-4 border-b border-gray-700 pb-2"><i class="fas fa-plug mr-2"></i> Current Session</h3>
+                
+                <div id="dash-no-session" class="text-center py-6 text-gray-500 text-sm">
+                    <i class="fas fa-car-battery text-3xl mb-2 opacity-50"></i><br>No active bookings.
+                </div>
+
+                <div id="dash-active-session" class="hidden text-center">
+                    <div class="bg-slate-900/80 rounded-xl p-4 mb-4 border border-emerald-500/20 relative overflow-hidden">
+                        <div id="session-bg-glow" class="absolute top-0 left-0 w-full h-1 bg-yellow-500"></div>
+                        <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-1" id="session-status-text">Status: Reserved</p>
+                        <h1 class="text-4xl font-mono font-bold text-white mb-1" id="session-port-id">P-X</h1>
+                        <p class="text-[10px] text-gray-500" id="session-order-id">ord_xyz</p>
+
+                        <div id="session-progress-container" class="hidden mt-4 text-left border-t border-slate-700 pt-3">
+                            <div class="flex justify-between text-[10px] text-gray-400 mb-1 font-mono"><span id="prog-time-elapsed">00:00</span><span id="prog-time-total">--:--</span></div>
+                            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden"><div id="session-progress" class="bg-emerald-500 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div></div>
+                        </div>
+                    </div>
+                    
+                    <div id="session-controls" class="space-y-3">
+                        <button id="btn-start-charge" onclick="startReservedCharge()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all text-sm"><i class="fas fa-bolt mr-1"></i> Start Charging</button>
+                        <button id="btn-cancel-charge" onclick="cancelBooking()" class="w-full bg-slate-800 hover:bg-red-900/50 text-red-400 border border-red-500/30 font-bold py-2 rounded-xl transition-all text-xs">Cancel & Refund (<span id="cancel-timer">10:00</span>)</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass p-6 rounded-3xl h-64 overflow-y-auto">
+                <h3 class="text-xs font-bold text-gray-400 uppercase mb-4 border-b border-gray-700 pb-2"><i class="fas fa-history mr-2"></i> Transactions</h3>
+                <div id="tx-list" class="space-y-3">
+                    <p class="text-xs text-center text-gray-500 pt-4">Loading history...</p>
+                </div>
+            </div>
+            <div class="text-center pb-4"><p class="text-[10px] text-gray-600 tracking-widest uppercase">Elegets Security Protocol V2</p></div>
+        </div>
+    </main>
+
+    <script>
+        /* ==============================================
+           1. FIREBASE CONFIGURATION (PASTE YOURS HERE)
+           ============================================== */
+        const firebaseConfig = {
+        apiKey: "AIzaSyA5KyoaxY-zXT6o6DdX3ppSx5UGfGkdmPk",
+        authDomain: "autonomusevstation.firebaseapp.com",
+        databaseURL: "https://autonomusevstation-default-rtdb.firebaseio.com",
+        projectId: "autonomusevstation",
+        storageBucket: "autonomusevstation.firebasestorage.app",
+        messagingSenderId: "612229097630",
+        appId: "1:612229097630:web:1a635d8de5a408b7c2338f",
+        measurementId: "G-Y2L38EV407"
+        };
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const fbAuth = firebase.auth();
+        const fbDb = firebase.database();
+
+        /* ==============================================
+           2. SUPABASE & CASHFREE CONFIG
+           ============================================== */
+        const VERCEL_URL = "https://charging-station-api.vercel.app";
+        const SUPABASE_URL = "https://krjcrshpjucwslxyhzib.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyamNyc2hwanVjd3NseHloemliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2OTY4NjksImV4cCI6MjA4MzI3Mjg2OX0.Yyh4fTBxAfL8815HQylm3ZE8j11EkcqkbAR52YayuT4";
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const cashfree = Cashfree({ mode: "production" });
+
+        const TEST_SPEEDUP = 5; 
+        const COST_PER_10MIN = 1; 
+
+        // Global State
+        let currentUser = null;
+        let userData = null;
+        let currentCapacityWh = 0, selectedChargerW = 0, calculatedCost = 1, calculatedMinutes = 10;
+        let map, routingControl, userEtaMins = 0, cancelInterval = null;
+
+        const vehicleDataMap = {
+            "2-Wheeler": { "Ola Electric": [{name:"S1 Pro", capacityWh:4000}], "Ather Energy": [{name:"450X", capacityWh:3700}] },
+            "4-Wheeler": { "Tata Motors": [{name:"Nexon EV", capacityWh:30000}], "MG Motor": [{name:"ZS EV", capacityWh:50000}] }
+        };
+        const chargerDataMap = [ { name: "3.3kW AC Slow", powerW: 3300 }, { name: "30kW DC Fast", powerW: 30000 } ];
+        const stationsArr = [ 
+            {name: "EV Hub 1 (GMRIT Area)", lat: 18.4603951, lng: 83.6618208},
+            {name: "EV Hub 2 (Rajam Town)", lat: 18.4485, lng: 83.7656}
+        ];
+
+        /* ==============================================
+           3. CORE UTILITIES (TOAST & MAPS)
+           ============================================== */
+        window.onload = async () => {
+            initMap();
+            startLiveDashboard();
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderId = urlParams.get('order_id');
+            const minutes = urlParams.get('mins'); 
+
+            if(orderId) handlePaymentReturn(orderId, minutes);
+        };
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bg = type === 'error' ? 'bg-red-500' : type === 'warn' ? 'bg-yellow-600' : 'bg-emerald-500';
+            const icon = type === 'error' ? 'fa-exclamation-triangle' : type === 'warn' ? 'fa-bolt' : 'fa-check-circle';
+            
+            toast.className = `${bg} text-white px-4 py-3 rounded-xl shadow-2xl transform transition-all duration-300 translate-y-[-100%] opacity-0 flex items-center gap-3 border border-white/20 pointer-events-auto mt-2`;
+            toast.innerHTML = `<i class="fas ${icon} text-lg"></i> <span class="text-sm font-semibold">${msg}</span>`;
+            
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-[-100%]', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('translate-y-[-100%]', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function initMap() {
+            map = L.map('ev-map', { zoomControl: false }).setView([18.4485, 83.7656], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            var redIcon = new L.Icon({
+              iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+              shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+              iconSize: [25, 41], iconAnchor: [12, 41]
+            });
+
+            stationsArr.forEach(st => L.marker([st.lat, st.lng], {icon: redIcon}).addTo(map).bindPopup(`<strong style="color: black;">${st.name}</strong>`));
+        }
+
+        function getDist(lat1, lon1, lat2, lon2) {
+            const a = Math.sin((lat2-lat1)*(Math.PI/180)/2)**2 + Math.cos(lat1*(Math.PI/180))*Math.cos(lat2*(Math.PI/180))*Math.sin((lon2-lon1)*(Math.PI/180)/2)**2; 
+            return 6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))); 
+        }
+
+        function locateAndRoute() {
+            if (!navigator.geolocation) return showToast("GPS not supported", "error");
+            showToast("Acquiring GPS Signal...", "info");
+            
+            navigator.geolocation.getCurrentPosition(pos => {
+                const uLat = pos.coords.latitude, uLng = pos.coords.longitude;
+                let nearest = stationsArr[0], minDist = getDist(uLat, uLng, nearest.lat, nearest.lng);
+                for(let i=1; i<stationsArr.length; i++) {
+                    let d = getDist(uLat, uLng, stationsArr[i].lat, stationsArr[i].lng);
+                    if(d < minDist) { minDist = d; nearest = stationsArr[i]; }
+                }
+
+                if(routingControl) map.removeControl(routingControl);
+                routingControl = L.Routing.control({
+                    waypoints: [ L.latLng(uLat, uLng), L.latLng(nearest.lat, nearest.lng) ],
+                    routeWhileDragging: false, addWaypoints: false, fitSelectedRoutes: true,
+                    lineOptions: { styles: [{color: '#10b981', weight: 4}] }, createMarker: () => null
+                }).addTo(map);
+
+                routingControl.on('routesfound', function(e) {
+                    const sum = e.routes[0].summary;
+                    userEtaMins = Math.round(sum.totalTime / 60);
+                    
+                    document.getElementById('route-info-panel').classList.remove('hidden');
+                    document.getElementById('route-dist').innerText = (sum.totalDistance / 1000).toFixed(1) + " km";
+                    document.getElementById('route-time').innerText = userEtaMins + " min";
+                    
+                    const tipsEl = document.getElementById('route-tips');
+                    if (userEtaMins > 30) {
+                        tipsEl.innerHTML = "<li><b>ETA > 30m:</b> Virtual queue active. We will allocate your hardware slot closer to arrival.</li>";
+                    } else {
+                        tipsEl.innerHTML = "<li><b>ETA < 30m:</b> Hardware port will be locked exclusively for you upon payment.</li>";
+                    }
+                });
+            }, err => showToast("GPS Denied.", "error"));
+        }
+
+        /* ==============================================
+           4. AUTHENTICATION LOGIC (Firebase)
+           ============================================== */
+        fbAuth.onAuthStateChanged((user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('auth-overlay').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+                fetchUserProfile();
+            } else {
+                currentUser = null;
+                document.getElementById('auth-overlay').classList.remove('hidden');
+                document.getElementById('main-app').classList.add('hidden');
+            }
+        });
+
+        function toggleAuth(view) {
+            document.getElementById('login-box').classList.add('hidden');
+            document.getElementById('register-box').classList.add('hidden');
+            document.getElementById('forgot-box').classList.add('hidden');
+            document.getElementById(`${view}-box`).classList.remove('hidden');
+        }
+
+        async function registerUser() {
+            const name = document.getElementById('reg-name').value;
+            const phone = document.getElementById('reg-phone').value;
+            const email = document.getElementById('reg-email').value;
+            const pass = document.getElementById('reg-pass').value;
+            
+            if(!name || !phone || !email || !pass) return showToast("All fields required", "error");
+            
+            try {
+                const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
+                await fbDb.ref('users/' + cred.user.uid + '/profile').set({
+                    name: name, phone: phone, email: email, cancelsToday: 0, lastCancelDate: new Date().toDateString()
+                });
+                showToast("Welcome to Elegets Network!", "info");
+            } catch (error) { showToast(error.message, "error"); }
+        }
+
+        async function loginUser() {
+            const email = document.getElementById('log-email').value;
+            const pass = document.getElementById('log-pass').value;
+            if(!email || !pass) return showToast("Email and password required", "error");
+            try { await fbAuth.signInWithEmailAndPassword(email, pass); showToast("Logged in successfully", "info"); } 
+            catch (error) { showToast(error.message, "error"); }
+        }
+
+        async function resetPassword() {
+            const email = document.getElementById('forgot-email').value;
+            if(!email) return showToast("Enter your email", "error");
+            try { await fbAuth.sendPasswordResetEmail(email); showToast("Reset link sent!", "info"); toggleAuth('login'); } 
+            catch (error) { showToast(error.message, "error"); }
+        }
+
+        function logoutUser() { fbAuth.signOut(); }
+
+        /* ==============================================
+           5. DASHBOARD & PROFILE LOGIC (RTDB Sync)
+           ============================================== */
+        function fetchUserProfile() {
+            fbDb.ref('users/' + currentUser.uid).on('value', (snapshot) => {
+                const data = snapshot.val() || {};
+                userData = data.profile || {};
+                
+                if(userData.lastCancelDate !== new Date().toDateString()) {
+                    userData.cancelsToday = 0;
+                    userData.lastCancelDate = new Date().toDateString();
+                    fbDb.ref('users/' + currentUser.uid + '/profile').update(userData);
+                }
+
+                document.getElementById('profile-initial').innerText = (userData.name || "?").charAt(0).toUpperCase();
+                document.getElementById('profile-name').innerText = userData.name || "EV Driver";
+                document.getElementById('profile-contact').innerText = `${userData.email} | ${userData.phone || ''}`;
+                
+                const rankBadge = document.getElementById('profile-rank');
+                if(userData.cancelsToday === 0) { rankBadge.innerText = "Rank: Trusty"; rankBadge.className = "text-[10px] bg-blue-600/20 text-blue-400 px-2 py-1 rounded-full border border-blue-500/50 uppercase font-bold shadow-lg"; }
+                else if(userData.cancelsToday === 1) { rankBadge.innerText = "Rank: Good"; rankBadge.className = "text-[10px] bg-emerald-600/20 text-emerald-400 px-2 py-1 rounded-full border border-emerald-500/50 uppercase font-bold shadow-lg"; }
+                else if(userData.cancelsToday === 2) { rankBadge.innerText = "Rank: Suspicious"; rankBadge.className = "text-[10px] bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded-full border border-yellow-500/50 uppercase font-bold shadow-lg"; }
+                else { rankBadge.innerText = "Rank: FRAUD (Blocked)"; rankBadge.className = "text-[10px] bg-red-600/20 text-red-400 px-2 py-1 rounded-full border border-red-500/50 uppercase font-bold shadow-lg"; }
+
+                renderActiveSession(data.activeSession);
+                renderTransactions(data.transactions);
+            });
+        }
+
+        function switchTab(tab) {
+            document.getElementById('view-charge').classList.add('hidden');
+            document.getElementById('view-dash').classList.add('hidden');
+            document.getElementById('tab-charge').classList.replace('bg-emerald-600', 'bg-slate-800');
+            document.getElementById('tab-charge').classList.replace('text-white', 'text-gray-400');
+            document.getElementById('tab-dash').classList.replace('bg-emerald-600', 'bg-slate-800');
+            document.getElementById('tab-dash').classList.replace('text-white', 'text-gray-400');
+            
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.replace('bg-slate-800', 'bg-emerald-600');
+            document.getElementById(`tab-${tab}`).classList.replace('text-gray-400', 'text-white');
+            if(tab === 'charge' && map) setTimeout(() => map.invalidateSize(), 100);
+        }
+
+        function renderActiveSession(session) {
+            if(!session) {
+                document.getElementById('dash-no-session').classList.remove('hidden');
+                document.getElementById('dash-active-session').classList.add('hidden');
+                if(cancelInterval) clearInterval(cancelInterval);
+                return;
+            }
+
+            document.getElementById('dash-no-session').classList.add('hidden');
+            document.getElementById('dash-active-session').classList.remove('hidden');
+            document.getElementById('session-port-id').innerText = session.slotId === "VQ" ? "Virtual Queue" : `P-${session.slotId}`;
+            document.getElementById('session-order-id').innerText = session.orderId;
+
+            const isVirtual = session.slotId === "VQ";
+            const btnStart = document.getElementById('btn-start-charge');
+            const btnCancel = document.getElementById('btn-cancel-charge');
+            const statusText = document.getElementById('session-status-text');
+            const bgGlow = document.getElementById('session-bg-glow');
+            const progCont = document.getElementById('session-progress-container');
+
+            if(session.status === 'reserved') {
+                statusText.innerText = isVirtual ? "Status: Queued (Far away)" : "Status: Port Held (Go to station)";
+                bgGlow.className = "absolute top-0 left-0 w-full h-1 bg-yellow-500";
+                progCont.classList.add('hidden');
+                btnStart.classList.remove('hidden');
+                btnCancel.classList.remove('hidden');
+                
+                if(cancelInterval) clearInterval(cancelInterval);
+                cancelInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - session.timestamp)/1000);
+                    const left = 600 - elapsed;
+                    if(left <= 0) {
+                        clearInterval(cancelInterval); btnCancel.disabled = true;
+                        btnCancel.innerText = "Cancellation Window Closed";
+                        btnCancel.classList.replace('text-red-400', 'text-gray-500');
+                    } else {
+                        btnCancel.innerText = `Cancel & Refund (${Math.floor(left/60).toString().padStart(2,'0')}:${(left%60).toString().padStart(2,'0')})`;
+                    }
+                }, 1000);
+
+            } else if (session.status === 'active') {
+                statusText.innerText = "Status: Power Transferring";
+                bgGlow.className = "absolute top-0 left-0 w-full h-1 bg-emerald-500";
+                progCont.classList.remove('hidden');
+                btnStart.classList.add('hidden');
+                btnCancel.classList.add('hidden');
+                if(cancelInterval) clearInterval(cancelInterval);
+                
+                const totalMs = (session.durationMins / TEST_SPEEDUP) * 60 * 1000;
+                document.getElementById('prog-time-total').innerText = `${session.durationMins}:00`;
+                
+                setInterval(() => {
+                    const elapsedMs = Date.now() - session.activeTimestamp;
+                    let percent = Math.min((elapsedMs / totalMs) * 100, 100);
+                    document.getElementById('session-progress').style.width = percent + "%";
+                    const simSecs = Math.floor((elapsedMs * TEST_SPEEDUP) / 1000);
+                    document.getElementById('prog-time-elapsed').innerText = `${Math.floor(simSecs / 60).toString().padStart(2, '0')}:${(simSecs % 60).toString().padStart(2, '0')}`;
+                    
+                    if(percent >= 100) {
+                        fbDb.ref('users/'+currentUser.uid+'/activeSession').remove();
+                        logTransaction(session.orderId, session.amount, "Completed");
+                    }
+                }, 1000);
+            }
+        }
+
+        function renderTransactions(txs) {
+            const list = document.getElementById('tx-list');
+            list.innerHTML = '';
+            if(!txs) return list.innerHTML = '<p class="text-xs text-center text-gray-500 pt-4">No past transactions.</p>';
+            
+            Object.values(txs).reverse().forEach(tx => {
+                const color = tx.status === 'Completed' ? 'text-emerald-400' : tx.status === 'Refunded' ? 'text-yellow-400' : 'text-red-400';
+                list.innerHTML += `
+                    <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex justify-between items-center">
+                        <div><p class="text-[10px] text-gray-400 font-mono">${tx.id}</p><p class="text-xs font-bold text-white">${new Date(tx.date).toLocaleDateString()}</p></div>
+                        <div class="text-right"><p class="text-xs font-bold ${color}">${tx.status}</p><p class="text-xs font-bold text-white">₹${tx.amount}</p></div>
+                    </div>`;
+            });
+        }
+
+        function logTransaction(id, amt, status) {
+            fbDb.ref('users/'+currentUser.uid+'/transactions').push({ id: id, amount: amt, status: status, date: Date.now() });
+        }
+
+        /* ==============================================
+           6. BOOKING, ALLOCATION, START, CANCEL
+           ============================================== */
+        async function initiateCheckout() {
+            if(!userData) return showToast("User profile not loaded yet.", "error");
+            if(userData.cancelsToday >= 3) return showToast("Account Blocked due to suspicious activity.", "error");
+
+            const btn = document.getElementById('pay-btn'); btn.innerHTML = 'Connecting...'; btn.disabled = true;
+
+            try {
+                const res = await fetch(`${VERCEL_URL}/api/create_order`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ amount: calculatedCost, phone: userData.phone || "6302085024", minutes: calculatedMinutes })
+                });
+                const data = await res.json();
+                if(data.error) throw new Error(data.error);
+
+                cashfree.checkout({
+                    paymentSessionId: data.payment_session_id,
+                    returnUrl: `https://pavan-1522.github.io/elegets-charging-station/?order_id=${data.order_id}&mins=${calculatedMinutes}&amt=${calculatedCost}`
+                });
+            } catch (err) { showToast(err.message, "error"); btn.innerHTML = "Pay to Reserve"; btn.disabled = false; }
+        }
+
+        async function handlePaymentReturn(orderId, minutes) {
+            const amt = new URLSearchParams(window.location.search).get('amt') || calculatedCost;
+            document.getElementById('section-form').classList.add('hidden');
+            document.getElementById('section-loading').classList.remove('hidden');
+
+            // Wait briefly to ensure Firebase Auth has initialized currentUser
+            setTimeout(() => {
+                if(!currentUser) return showToast("Please login to see your booking.", "error");
+                
+                fbDb.ref('users/'+currentUser.uid+'/activeSession').once('value').then(async (snap) => {
+                    if(snap.exists() && snap.val().orderId === orderId) {
+                        document.getElementById('section-loading').classList.add('hidden');
+                        switchTab('dash'); return;
+                    }
+
+                    try {
+                        const res = await fetch(`${VERCEL_URL}/api/check_status?order_id=${orderId}`);
+                        const data = await res.json();
+                        if(data.order_status === "PAID") {
+                            await processSmartAllocation(minutes || 10, orderId, amt);
+                        } else {
+                            showToast("Payment Failed", "error");
+                            setTimeout(() => window.location.href = window.location.pathname, 2000);
+                        }
+                    } catch (err) { showToast("Verification Error", "error"); }
+                });
+            }, 1500);
+        }
+
+        async function processSmartAllocation(mins, orderId, amt) {
+            let { data: slots } = await db.from('slots').select('*').lt('id', 5).eq('is_active', false).order('id').limit(1);
+            
+            let assignedSlot = "VQ";
+            if(slots && slots.length > 0 && userEtaMins <= 30) {
+                assignedSlot = slots[0].id;
+                await db.from('slots').update({ is_active: true, expiry_time: Date.now() + (24*60*60*1000) }).eq('id', assignedSlot);
+            } else if (!slots || slots.length === 0) {
+                assignedSlot = "VQ"; 
+            }
+
+            await fbDb.ref('users/'+currentUser.uid+'/activeSession').set({
+                orderId: orderId, slotId: assignedSlot, status: 'reserved', durationMins: mins, amount: amt, timestamp: Date.now()
+            });
+
+            document.getElementById('section-loading').classList.add('hidden');
+            switchTab('dash');
+            showToast("Reservation Secured!", "info");
+        }
+
+        async function startReservedCharge() {
+            fbDb.ref('users/'+currentUser.uid+'/activeSession').once('value').then(async (snap) => {
+                const session = snap.val();
+                if(session.slotId === "VQ") return showToast("You are in virtual queue. Waiting for hardware.", "warn");
+
+                const realDurMs = (session.durationMins / TEST_SPEEDUP) * 60 * 1000;
+                await db.from('slots').update({ is_active: true, expiry_time: Date.now() + realDurMs + (5.5*60*60*1000) }).eq('id', session.slotId);
+                
+                await fbDb.ref('users/'+currentUser.uid+'/activeSession').update({ status: 'active', activeTimestamp: Date.now() });
+                showToast("Hardware unlocked. Charging started.", "info");
+            });
+        }
+
+        async function cancelBooking() {
+            fbDb.ref('users/'+currentUser.uid+'/activeSession').once('value').then(async (snap) => {
+                const session = snap.val();
+                
+                await fbDb.ref('users/'+currentUser.uid+'/profile').update({ cancelsToday: (userData.cancelsToday || 0) + 1 });
+                if(session.slotId !== "VQ") await db.from('slots').update({ is_active: false, expiry_time: 0 }).eq('id', session.slotId);
+
+                logTransaction(session.orderId, session.amount, "Refunded");
+                await fbDb.ref('users/'+currentUser.uid+'/activeSession').remove();
+                
+                showToast("Slot cancelled. Auto-refund initiated.", "info");
+            });
+        }
+
+        /* ==============================================
+           7. FORM CALCULATIONS & LIVE DASHBOARD
+           ============================================== */
+        function loadBrands() { const sel=document.getElementById('brand-select'); sel.innerHTML='<option disabled selected>Brand</option>'; document.getElementById('brand-wrapper').classList.remove('hidden'); document.getElementById('model-wrapper').classList.add('hidden'); document.getElementById('charger-wrapper').classList.add('hidden'); document.getElementById('battery-wrapper').classList.add('hidden'); Object.keys(vehicleDataMap[document.getElementById('os-select').value]).forEach(b=>sel.innerHTML+=`<option value="${b}">${b}</option>`); }
+        function loadModels() { const sel=document.getElementById('model-select'); sel.innerHTML='<option disabled selected>Model</option>'; document.getElementById('model-wrapper').classList.remove('hidden'); vehicleDataMap[document.getElementById('os-select').value][document.getElementById('brand-select').value].forEach(m=>sel.innerHTML+=`<option value="${m.capacityWh}">${m.name}</option>`); }
+        function loadChargers() { const sel=document.getElementById('charger-select'); sel.innerHTML='<option disabled selected>Charger</option>'; document.getElementById('charger-wrapper').classList.remove('hidden'); chargerDataMap.forEach(c=>sel.innerHTML+=`<option value="${c.powerW}">${c.name}</option>`); }
+        function enableBatteryInput() { document.getElementById('battery-wrapper').classList.remove('hidden'); currentCapacityWh=parseInt(document.getElementById('model-select').value); selectedChargerW=parseInt(document.getElementById('charger-select').value); calculatePrediction(); }
+        
+        function calculatePrediction() { 
+            const pct = document.getElementById('battery-range').value; 
+            document.getElementById('battery-val').innerText = pct + "%"; 
+            const neededWh = currentCapacityWh * ((100 - pct) / 100); 
+            calculatedMinutes = Math.max(10, Math.ceil((neededWh / selectedChargerW) * 60 / 0.9)); 
+            calculatedCost = Math.ceil(calculatedMinutes / 10) * COST_PER_10MIN; 
+            document.getElementById('time-display').innerText = calculatedMinutes + " m"; 
+            document.getElementById('cost-display').innerText = "₹" + calculatedCost; 
+            document.getElementById('btn-cost').innerText = calculatedCost; 
+        }
+
+        function startLiveDashboard() { updateDashboard(); setInterval(updateDashboard, 5000); }
+        async function updateDashboard() {
+            const { data: slots } = await db.from('slots').select('*').lt('id', 5).order('id');
+            const grid = document.getElementById('relay-grid'); grid.innerHTML = "";
+            let busy = 0; const now = Date.now() + (5.5*60*60*1000);
+
+            slots.forEach(slot => {
+                const div = document.createElement('div');
+                div.className = "rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-lg transition-all";
+                if(slot.is_active) {
+                    busy++; let remMs = slot.expiry_time - now; let rem = Math.ceil(remMs/60000);
+                    if (remMs > 2 * 60 * 60 * 1000) {
+                        div.classList.add('bg-yellow-900/30', 'border', 'border-yellow-500/50', 'animate-pulse');
+                        div.innerHTML = `<div class="text-[10px] text-yellow-200">PORT ${slot.id}</div><i class="fas fa-parking text-yellow-400 my-2 text-xl"></i><div class="text-[10px] font-bold text-yellow-500 mt-1">RESERVED</div>`;
+                    } else {
+                        let displayRem = rem < 0 ? 0 : rem * TEST_SPEEDUP; 
+                        div.classList.add('bg-emerald-900/30', 'border', 'border-emerald-500/50', 'charging-glow');
+                        div.innerHTML = `<div class="text-[10px] text-emerald-200">PORT ${slot.id}</div><i class="fas fa-bolt text-emerald-400 my-2 text-xl"></i><div class="text-xs font-bold text-white">${displayRem}m</div>`;
+                    }
+                } else {
+                    div.classList.add('bg-slate-800/80', 'border', 'border-slate-700');
+                    div.innerHTML = `<div class="text-[10px] text-gray-500">PORT ${slot.id}</div><i class="fas fa-plug text-gray-600 my-2 text-xl"></i><div class="text-[10px] font-bold text-emerald-600/70">IDLE</div>`;
+                }
+                grid.appendChild(div);
+            });
+            document.getElementById('avail-count').innerText = (4-busy)+"/4 Free";
+        }
+    </script>
+</body>
+</html>

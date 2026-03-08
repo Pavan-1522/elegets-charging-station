@@ -603,14 +603,17 @@
         }
 
         async function cancelBooking() {
+            // 1. Change button text to show loading state instead of looking for old HTML elements
+            const btnCancel = document.getElementById('btn-cancel-charge');
+            const originalText = btnCancel.innerText;
+            if (btnCancel) {
+                btnCancel.disabled = true;
+                btnCancel.innerText = "Processing Refund...";
+            }
+
             fbDb.ref('users/'+currentUser.uid+'/activeSession').once('value').then(async (snap) => {
                 const session = snap.val();
                 if(!session) return;
-
-                // 1. Show loading state
-                document.getElementById('section-reserved').classList.add('hidden');
-                document.getElementById('section-loading').classList.remove('hidden');
-                document.getElementById('loading-text').innerText = "Processing Refund Gateway...";
 
                 try {
                     // 2. Call Vercel Backend to process Real Cashfree Refund
@@ -641,15 +644,18 @@
                     logTransaction(session.orderId, session.amount, "Refunded");
                     await fbDb.ref('users/'+currentUser.uid+'/activeSession').remove();
                     
-                    // 6. Update UI
-                    document.getElementById('section-loading').classList.add('hidden');
-                    switchTab('dash');
+                    // Note: We DO NOT need to manually update the HTML here.
+                    // The live Firebase listener will automatically notice the session is gone
+                    // and update the Dashboard UI to "No active bookings" instantly!
+                    
                     showToast("Slot cancelled. Auto-refund initiated to your bank.", "info");
 
                 } catch (err) {
-                    // If refund fails, go back to reserved screen and warn user
-                    document.getElementById('section-loading').classList.add('hidden');
-                    document.getElementById('section-reserved').classList.remove('hidden');
+                    // If refund fails, revert the button back to normal so they can try again
+                    if (btnCancel) {
+                        btnCancel.disabled = false;
+                        btnCancel.innerText = originalText;
+                    }
                     showToast(err.message, "error");
                 }
             });

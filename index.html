@@ -605,14 +605,53 @@
         async function cancelBooking() {
             fbDb.ref('users/'+currentUser.uid+'/activeSession').once('value').then(async (snap) => {
                 const session = snap.val();
-                
-                await fbDb.ref('users/'+currentUser.uid+'/profile').update({ cancelsToday: (userData.cancelsToday || 0) + 1 });
-                if(session.slotId !== "VQ") await db.from('slots').update({ is_active: false, expiry_time: 0 }).eq('id', session.slotId);
+                if(!session) return;
 
-                logTransaction(session.orderId, session.amount, "Refunded");
-                await fbDb.ref('users/'+currentUser.uid+'/activeSession').remove();
-                
-                showToast("Slot cancelled. Auto-refund initiated.", "info");
+                // 1. Show loading state
+                document.getElementById('section-reserved').classList.add('hidden');
+                document.getElementById('section-loading').classList.remove('hidden');
+                document.getElementById('loading-text').innerText = "Processing Refund Gateway...";
+
+                try {
+                    // 2. Call Vercel Backend to process Real Cashfree Refund
+                    const refundRes = await fetch(`${VERCEL_URL}/api/cancel_order`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            order_id: session.orderId, 
+                            amount: session.amount 
+                        })
+                    });
+                    
+                    const refundData = await refundRes.json();
+                    
+                    if(!refundRes.ok) throw new Error(refundData.error || "Refund request failed at gateway.");
+
+                    // 3. Refund Success! Now penalize user trust score
+                    await fbDb.ref('users/'+currentUser.uid+'/profile').update({ 
+                        cancelsToday: (userData.cancelsToday || 0) + 1 
+                    });
+
+                    // 4. Free the physical hardware slot in Supabase (if not virtual)
+                    if(session.slotId !== "VQ") {
+                        await db.from('slots').update({ is_active: false, expiry_time: 0 }).eq('id', session.slotId);
+                    }
+
+                    // 5. Log the transaction and clear active session
+                    logTransaction(session.orderId, session.amount, "Refunded");
+                    await fbDb.ref('users/'+currentUser.uid+'/activeSession').remove();
+                    
+                    // 6. Update UI
+                    document.getElementById('section-loading').classList.add('hidden');
+                    switchTab('dash');
+                    showToast("Slot cancelled. Auto-refund initiated to your bank.", "info");
+
+                } catch (err) {
+                    // If refund fails, go back to reserved screen and warn user
+                    document.getElementById('section-loading').classList.add('hidden');
+                    document.getElementById('section-reserved').classList.remove('hidden');
+                    showToast(err.message, "error");
+                }
             });
         }
 
@@ -634,7 +673,7 @@
             document.getElementById('cost-display').innerText = "₹" + calculatedCost; 
             document.getElementById('btn-cost').innerText = calculatedCost; 
         }
-        
+
 
         function startLiveDashboard() { updateDashboard(); setInterval(updateDashboard, 5000); }
         async function updateDashboard() {
